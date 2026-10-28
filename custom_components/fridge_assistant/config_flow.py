@@ -29,6 +29,7 @@ from .const import (
     CONF_PRINTER_ENABLED,
     CONF_PRINTER_URL,
     CONF_WARN_DAYS,
+    CONF_KNUSPR_TOKEN,
     DOMAIN,
 )
 from .coordinator import get_options
@@ -68,7 +69,7 @@ class FridgeAssistantOptionsFlow(OptionsFlow):
             if CONF_LABEL_COPIES in data:
                 data[CONF_LABEL_COPIES] = int(data[CONF_LABEL_COPIES])
             for key in (CONF_AI_AGENT, CONF_OPENAI_KEY, CONF_OPENAI_MODEL,
-                        CONF_PRINTER_URL):
+                        CONF_PRINTER_URL, CONF_KNUSPR_TOKEN):
                 if key in data and isinstance(data[key], str):
                     data[key] = data[key].strip()
             return self.async_create_entry(title="", data=data)
@@ -131,6 +132,11 @@ class FridgeAssistantOptionsFlow(OptionsFlow):
                 vol.Optional(
                     CONF_PRINTER_URL, description=sv(CONF_PRINTER_URL)
                 ): selector.TextSelector(),
+                vol.Optional(
+                    CONF_KNUSPR_TOKEN, description=sv(CONF_KNUSPR_TOKEN)
+                ): selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                ),
                 vol.Optional(
                     CONF_LABEL_COPIES, description=sv(CONF_LABEL_COPIES)
                 ): selector.NumberSelector(

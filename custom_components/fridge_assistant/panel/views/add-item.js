@@ -5,7 +5,7 @@ import { addDays, daysBetween, daysLabel, debounce, esc, todayISO } from "../lib
 export function openAddModal(panel, prefill = {}, editItem = null) {
   const isEdit = !!editItem;
   const m = {
-    location: prefill.location || editItem?.location || "fridge",
+    location: prefill.location || editItem?.location || panel._state.locations?.[0] || "fridge",
     added: prefill.added_date || editItem?.added_date || todayISO(),
     expiry: prefill.expiry_date || editItem?.expiry_date || "",
     expiryManual: isEdit ? editItem?.expiry_source === "manual" : false,

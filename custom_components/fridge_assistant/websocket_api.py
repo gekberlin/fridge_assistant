@@ -113,6 +113,7 @@ def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_knuspr_import_rows)
     websocket_api.async_register_command(hass, ws_knuspr_discover)
     websocket_api.async_register_command(hass, ws_knuspr_fetch)
+    websocket_api.async_register_command(hass, ws_knuspr_login)
     websocket_api.async_register_command(hass, ws_add_item)
     websocket_api.async_register_command(hass, ws_update_item)
     websocket_api.async_register_command(hass, ws_remove_item)
@@ -852,10 +853,11 @@ async def ws_knuspr_fetch(hass, connection, msg):
     runtime = _runtime_or_error(hass, connection, msg)
     if runtime is None:
         return
-    token = str(runtime.entry.options.get(CONF_KNUSPR_TOKEN) or "")
-    if not token:
-        connection.send_error(msg["id"], "not_authenticated",
-                              "Configure Knuspr OAuth access token first")
+    from .knuspr_oauth import access_token, OAuthConnectionError
+    try:
+        token = await access_token(hass)
+    except OAuthConnectionError as err:
+        connection.send_error(msg["id"], "not_authenticated", str(err))
         return
     try:
         orders = await fetch_last_three(hass, token)
@@ -865,3 +867,18 @@ async def ws_knuspr_fetch(hass, connection, msg):
         connection.send_error(msg["id"], "knuspr_error", str(err))
         return
     connection.send_result(msg["id"], {"orders_staged": len(staged)})
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_login"})
+@websocket_api.async_response
+async def ws_knuspr_login(hass, connection, msg):
+    """Register client and return authorization URL to an HA admin."""
+    from .knuspr_oauth import start_login, OAuthConnectionError
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
+    try:
+        url = await start_login(hass)
+    except OAuthConnectionError as err:
+        connection.send_error(msg["id"], "oauth_error", str(err))
+        return
+    connection.send_result(msg["id"], {"authorization_url": url})

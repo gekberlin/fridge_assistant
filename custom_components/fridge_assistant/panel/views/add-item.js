@@ -136,7 +136,8 @@ export function openAddModal(panel, prefill = {}, editItem = null) {
       m.template_id = t.id; m.category = t.category; setEmoji(t.emoji || "🍽️");
       if (!m.kindManual) setKind(panel._kindOf(t));
       const sl = t.shelf_life || {};
-      const noHere = sl[m.location] === null || sl[m.location] === undefined;
+      const storageType = (panel._state.location_meta || {})[m.location]?.storage_type || m.location;
+      const noHere = sl[storageType] === null || sl[storageType] === undefined;
       applySuggestion(res.suggestion?.expiry_date, "template");
       suggestEl.className = "suggest ok";
       suggestEl.innerHTML = `

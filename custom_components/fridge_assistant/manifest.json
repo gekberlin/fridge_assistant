@@ -14,10 +14,10 @@
     "websocket_api",
     "panel_custom"
   ],
-  "documentation": "https://github.com/MaxGramser/fridge_assistant",
+  "documentation": "https://github.com/gekberlin/fridge_assistant",
   "integration_type": "service",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/MaxGramser/fridge_assistant/issues",
+  "issue_tracker": "https://github.com/gekberlin/fridge_assistant/issues",
   "requirements": [],
-  "version": "0.7.0"
+  "version": "0.7.1"
 }

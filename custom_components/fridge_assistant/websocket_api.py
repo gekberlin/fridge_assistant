@@ -108,6 +108,7 @@ TEMPLATE_SCHEMA = vol.Schema(
 def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_subscribe)
     websocket_api.async_register_command(hass, ws_get_state)
+    websocket_api.async_register_command(hass, ws_manage_location)
     websocket_api.async_register_command(hass, ws_add_item)
     websocket_api.async_register_command(hass, ws_update_item)
     websocket_api.async_register_command(hass, ws_remove_item)
@@ -179,7 +180,7 @@ def _serialize_state(hass: HomeAssistant, runtime: FridgeRuntime) -> dict[str, A
         "expired": sum(1 for i in items if i["status"] == "expired"),
         "soon": sum(1 for i in items if i["status"] == "soon"),
         "by_location": {
-            loc: sum(1 for i in items if i["location"] == loc) for loc in LOCATIONS
+            loc: sum(1 for i in items if i["location"] == loc) for loc in runtime.store.locations
         },
     }
     return {
@@ -189,8 +190,8 @@ def _serialize_state(hass: HomeAssistant, runtime: FridgeRuntime) -> dict[str, A
         "categories": CATEGORIES,
         "kinds": KINDS,
         "category_kind": CATEGORY_KIND,
-        "locations": LOCATIONS,
-        "location_meta": LOCATION_META,
+        "locations": list(runtime.store.locations),
+        "location_meta": {key: {"label": meta["name"], "storage_type": meta["storage_type"], "emoji": LOCATION_META.get(meta["storage_type"], {}).get("emoji", "🧺"), "icon": LOCATION_META.get(meta["storage_type"], {}).get("icon", "mdi:cupboard")} for key, meta in runtime.store.locations.items()},
         "counts": counts,
         "today": today.isoformat(),
         # Only a count in the live state; the full log is paged via ws_history so
@@ -527,7 +528,7 @@ async def ws_lookup_barcode(hass, connection, msg) -> None:
     {
         vol.Required("type"): f"{DOMAIN}/match_template",
         vol.Required("query"): str,
-        vol.Optional("location"): vol.In(LOCATIONS),
+        vol.Optional("location"): cv.string,
         vol.Optional("added_date"): str,
     }
 )
@@ -749,3 +750,33 @@ async def ws_get_printers(hass, connection, msg) -> None:
     connection.send_result(
         msg["id"], {"available": bool(data), "printers": printers}
     )
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/manage_location",
+    vol.Required("action"): vol.In(("add", "rename", "remove")),
+    vol.Required("location_id"): cv.string,
+    vol.Optional("name"): cv.string,
+    vol.Optional("storage_type"): vol.In(("fridge", "freezer", "pantry")),
+})
+@websocket_api.async_response
+async def ws_manage_location(hass, connection, msg) -> None:
+    """Manage physical locations; restricted to HA administrators."""
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
+    runtime = _runtime_or_error(hass, connection, msg)
+    if runtime is None:
+        return
+    try:
+        action = msg["action"]
+        if action == "add":
+            runtime.store.add_location(msg["location_id"], msg.get("name", ""), msg.get("storage_type", "pantry"))
+        elif action == "rename":
+            runtime.store.rename_location(msg["location_id"], msg.get("name", ""))
+        else:
+            runtime.store.remove_location(msg["location_id"])
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid_location", str(err))
+        return
+    await runtime.async_changed()
+    connection.send_result(msg["id"], {"locations": runtime.store.locations})

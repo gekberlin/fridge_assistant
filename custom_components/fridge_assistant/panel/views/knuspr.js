@@ -9,13 +9,37 @@ export function openKnuspr(panel) {
   const texts = panel._lang() === "nl"
     ? {title:"Knuspr-bestellingen", empty:"Nog geen bestellingen opgehaald. Configureer eerst de MCP-brug.", all:"Alles selecteren", import:"Geselecteerde artikelen toevoegen", done:"Al toegevoegd", choose:"Opslaglocatie", loading:"Overgenomen"}
     : {title:"Knuspr orders", empty:"No orders fetched yet. Configure the authenticated MCP bridge first.", all:"Select all", import:"Import selected items", done:"Already imported", choose:"Storage location", loading:"Imported"};
-  const { modal, close } = openModal(panel, `<h2>${texts.title}</h2>
+  const { modal, close } = openModal(panel, `<h2>${texts.title}</h2><div class="kn-controls"><button class="btn primary" id="kn-fetch" type="button">Letzte 3 Bestellungen abrufen</button><button class="btn ghost" id="kn-discover" type="button">MCP-Verbindung prüfen</button></div><p id="kn-status" role="status"></p>
     ${!orders.length ? `<p>${texts.empty}</p>` : `
     <label class="field">Order <select id="kn-order">
       ${orders.map(o => `<option value="${esc(o.id)}">${esc(o.order_time || o.id)} · ${o.items.length} items</option>`).join("")}
     </select></label><div id="kn-items"></div>
     <button class="btn ghost" id="kn-all" type="button">${texts.all}</button>
     <button class="btn primary" id="kn-import" type="button">${texts.import}</button>`}`);
+  const status = modal.querySelector("#kn-status");
+  modal.querySelector("#kn-discover").addEventListener("click", async ev => {
+    ev.currentTarget.disabled = true;
+    try {
+      const result = await panel._call("knuspr_discover");
+      status.textContent = "OAuth discovery: " + JSON.stringify(result);
+    } catch (err) { status.textContent = String(err.message || err); }
+    finally { ev.currentTarget.disabled = false; }
+  });
+  modal.querySelector("#kn-fetch").addEventListener("click", async ev => {
+    ev.currentTarget.disabled = true;
+    status.textContent = "Knuspr wird abgefragt…";
+    try {
+      const result = await panel._call("knuspr_fetch");
+      status.textContent = result.orders_staged + " Bestellungen abgerufen.";
+      close();
+      // Updated state is delivered by the normal websocket subscription.
+      await panel._call("get_state").then(state => { panel._state = state; });
+      openKnuspr(panel);
+    } catch (err) {
+      status.textContent = String(err.message || err);
+      ev.currentTarget.disabled = false;
+    }
+  });
   if (!orders.length) return;
   const list = modal.querySelector("#kn-items");
   const picker = modal.querySelector("#kn-order");

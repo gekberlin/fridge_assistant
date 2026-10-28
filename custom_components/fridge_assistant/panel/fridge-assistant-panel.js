@@ -21,6 +21,7 @@ import { eatScanned, onRetailBarcode, onScan, openScanner } from "./views/scanne
 import { historyRow, openHistory, relTime } from "./views/history.js";
 import { openCleanModal } from "./views/cleanup.js";
 import { printSticker } from "./views/print.js";
+import { openKnuspr } from "./views/knuspr.js";
 
 class FridgeAssistantPanel extends HTMLElement {
   constructor() {
@@ -238,6 +239,7 @@ class FridgeAssistantPanel extends HTMLElement {
             <div class="brand"><ha-icon class="brand-emoji" icon="mdi:fridge-outline"></ha-icon><h1>${this.t("appTitle")}</h1></div>
             <span class="spacer"></span>
             <button class="icon-btn" id="btn-history" title="${this.t("historyTooltip", 0)}"><ha-icon icon="mdi:history"></ha-icon></button>
+            <button class="icon-btn" id="btn-knuspr" title="Knuspr orders"><ha-icon icon="mdi:basket-outline"></ha-icon></button>
             <button class="icon-btn" id="btn-locations" title="Lagerorte verwalten"><ha-icon icon="mdi:map-marker-multiple-outline"></ha-icon></button>
             <button class="icon-btn" id="btn-templates" title="${this.t("manageTemplates")}"><ha-icon icon="mdi:book-multiple"></ha-icon></button>
             <button class="icon-btn" id="btn-settings" title="${this.t("settings")}"><ha-icon icon="mdi:cog-outline"></ha-icon></button>
@@ -262,6 +264,7 @@ class FridgeAssistantPanel extends HTMLElement {
     $("btn-clean").addEventListener("click", () => this._openCleanModal());
     $("btn-history").addEventListener("click", () => this._openHistory());
     $("btn-templates").addEventListener("click", () => this._openTemplatesManager());
+    $("btn-knuspr").addEventListener("click", () => openKnuspr(this));
     $("btn-locations").addEventListener("click", () => this._openLocationsManager());
     $("btn-settings").addEventListener("click", () => {
       // SPA navigation: a hard location change reloads the whole HA frontend.

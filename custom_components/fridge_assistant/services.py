@@ -83,6 +83,7 @@ SERVICE_ADD_TEMPLATE = "add_template"
 SERVICE_PRINT_STICKER = "print_sticker"
 SERVICE_EXPORT_LABEL = "export_label"
 SERVICE_RUN_CHECK = "run_check"
+SERVICE_STAGE_KNUSPR = "stage_knuspr_orders"
 
 _ALL_SERVICES = [
     SERVICE_ADD_ITEM,
@@ -96,6 +97,7 @@ _ALL_SERVICES = [
     SERVICE_PRINT_STICKER,
     SERVICE_EXPORT_LABEL,
     SERVICE_RUN_CHECK,
+    SERVICE_STAGE_KNUSPR,
 ]
 
 _SAMPLE_ITEM = {
@@ -378,6 +380,17 @@ def async_setup_services(hass: HomeAssistant) -> None:
         runtime = _get_runtime(hass)
         await runtime.async_run_expiry_check()
 
+    async def handle_stage_knuspr(call: ServiceCall) -> ServiceResponse:
+        runtime = _get_runtime(hass)
+        staged = runtime.store.stage_knuspr_orders(list(call.data["orders"]))
+        await runtime.async_changed()
+        return {"orders_staged": len(staged)}
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_STAGE_KNUSPR, handle_stage_knuspr,
+        schema=vol.Schema({vol.Required("orders"): [dict]}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
     hass.services.async_register(
         DOMAIN, SERVICE_ADD_ITEM, handle_add_item,
         schema=ADD_ITEM_SCHEMA, supports_response=SupportsResponse.OPTIONAL,

@@ -272,6 +272,8 @@ ha-icon{--mdc-icon-size:18px;vertical-align:-4px;}
 .seg{display:flex;gap:5px;background:var(--fa-soft);border-radius:14px;padding:4px;margin:12px 0;}
 .seg button{flex:1;border:none;background:none;color:var(--fa-text);padding:10px 4px;border-radius:11px;
   font-size:14px;cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap;}
+#f-loc{overflow-x:auto;max-width:100%;min-width:0;scrollbar-width:thin;-webkit-overflow-scrolling:touch;justify-content:flex-start}
+#f-loc button{flex:0 0 auto;padding:10px 12px}
 .seg button.on{background:var(--fa-card);box-shadow:var(--fa-shadow-s);font-weight:800;}
 /* Printer picker in the print modal: queue name + label size per segment. */
 .pp-seg{margin:0 0 12px;}
@@ -534,6 +536,12 @@ ha-icon{--mdc-icon-size:18px;vertical-align:-4px;}
 .location-manager-form{display:flex;flex-direction:column;gap:12px}
 .location-manager-form label{display:flex;flex-direction:column;gap:5px;font-weight:700}
 .location-manager-form input,.location-manager-form select{width:100%;padding:12px;font-size:16px;border:1px solid var(--fa-border);border-radius:12px;background:var(--fa-card);color:var(--fa-text)}
+.kn-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--fa-line)}
+.kn-row label{display:flex;align-items:center;gap:8px;flex:1 1 210px;min-width:0}
+.kn-row label span{overflow-wrap:anywhere}
+.kn-row select,#kn-order{max-width:100%;min-width:150px;padding:9px;border:1px solid var(--fa-border);border-radius:10px;color:var(--fa-text);background:var(--fa-card)}
+#kn-items{max-height:45vh;overflow:auto;margin-bottom:12px}
+#kn-import{margin:12px 0 4px;width:100%}
 /* --------------------------------------------------------------- desktop */
 @media (min-width:640px){
   .brand h1{font-size:25px;}

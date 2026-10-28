@@ -136,14 +136,15 @@ export function openAddModal(panel, prefill = {}, editItem = null) {
       m.template_id = t.id; m.category = t.category; setEmoji(t.emoji || "🍽️");
       if (!m.kindManual) setKind(panel._kindOf(t));
       const sl = t.shelf_life || {};
-      const noHere = sl[m.location] === null || sl[m.location] === undefined;
+      const storageType = (panel._state.location_meta || {})[m.location]?.storage_type || m.location;
+      const noHere = sl[storageType] === null || sl[storageType] === undefined;
       applySuggestion(res.suggestion?.expiry_date, "template");
       suggestEl.className = "suggest ok";
       suggestEl.innerHTML = `
         <button type="button" class="s-take" id="s-take" title="${panel.t("useTemplateNameTitle")}">
           <span class="s-emoji">${t.emoji || "📋"}</span>
           <div class="s-body"><b>${esc(t.name)}</b>
-            <div class="s-sub">${noHere ? panel.t("notSuitableHere") : panel.t("daysAtLocation", panel._locMeta(m.location).label, sl[m.location])}${t.notes ? " · " + esc(t.notes) : ""}</div></div>
+            <div class="s-sub">${noHere ? panel.t("notSuitableHere") : panel.t("daysAtLocation", panel._locMeta(m.location).label, sl[storageType])}${t.notes ? " · " + esc(t.notes) : ""}</div></div>
         </button>
         <div class="s-actions">
           ${panel._state.options.ai_enabled ? `<button class="s-mini" id="s-ai" title="${panel.t("aiEstimateTitle")}"><ha-icon icon="mdi:creation"></ha-icon></button>` : ""}

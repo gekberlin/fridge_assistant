@@ -540,7 +540,7 @@ async def ws_match_template(hass, connection, msg) -> None:
     tpl = runtime.store.match_template(msg["query"])
     suggestion = None
     if tpl and msg.get("location"):
-        days = runtime.store.shelf_life_days(tpl, msg["location"])
+        days = runtime.store.shelf_life_days(tpl, runtime.store.locations.get(msg["location"], {}).get("storage_type", "pantry"))
         if days is not None:
             base = parse_date(msg.get("added_date")) or dt_util.now().date()
             suggestion = {

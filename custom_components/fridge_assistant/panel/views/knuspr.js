@@ -21,7 +21,7 @@ export function openKnuspr(panel) {
     ev.currentTarget.disabled = true;
     try {
       const { authorization_url } = await panel._call("knuspr_login");
-      window.open(authorization_url, "_blank", "noopener,noreferrer");
+      window.location.assign(authorization_url);
       status.textContent = "Bitte im neuen Browserfenster bei Knuspr anmelden.";
     } catch (err) {
       status.textContent = String(err.message || err);

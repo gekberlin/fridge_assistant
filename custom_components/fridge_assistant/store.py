@@ -206,6 +206,8 @@ class FridgeStore:
         )
         self.items: dict[str, dict[str, Any]] = {}
         self.locations = self._default_locations()
+        self.knuspr_orders = []
+        self.knuspr_imported = set()
         self.user_templates: dict[str, dict[str, Any]] = {}
         self.hidden: set[str] = set()
         self.history: list[dict[str, Any]] = []  # newest first, capped
@@ -252,6 +254,8 @@ class FridgeStore:
         if data:
             if "locations" in data:
                 self.locations = {k: v for k, v in data["locations"].items() if isinstance(v, dict) and v.get("storage_type") in ("fridge", "freezer", "pantry")}
+            self.knuspr_orders = list(data.get("knuspr_orders", []))[:3]
+            self.knuspr_imported = set(data.get("knuspr_imported", []))
             self.items = {i["id"]: i for i in data.get("items", []) if i.get("id")}
             self.user_templates = {
                 t["id"]: t for t in data.get("user_templates", []) if t.get("id")
@@ -285,11 +289,29 @@ class FridgeStore:
             {
                 "items": list(self.items.values()),
                 "locations": self.locations,
+                "knuspr_orders": self.knuspr_orders,
+                "knuspr_imported": sorted(self.knuspr_imported),
                 "user_templates": list(self.user_templates.values()),
                 "hidden": list(self.hidden),
                 "history": self.history,
             }
         )
+
+    def stage_knuspr_orders(self, orders):
+        """Store a read-only preview of up to three delivered orders."""
+        from .knuspr_import import normalize_order
+        staged = []
+        for order in orders[:3]:
+            if not isinstance(order, dict) or order.get("id") is None:
+                continue
+            staged.append({
+                "id": str(order["id"]),
+                "order_time": order.get("orderTime"),
+                "state": order.get("state"),
+                "items": normalize_order(order),
+            })
+        self.knuspr_orders = staged
+        return staged
 
     # ---- templates --------------------------------------------------------
 

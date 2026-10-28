@@ -846,28 +846,23 @@ async def ws_knuspr_discover(hass, connection, msg):
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_fetch"})
 @websocket_api.async_response
 async def ws_knuspr_fetch(hass, connection, msg):
-    """Explicitly fetch three delivered orders, never in the background."""
-    from .knuspr_client import fetch_last_three, KnusprError
+    """Fetch orders only after a user clicks, via HA-RohlikCZ."""
+    from .knuspr_rohlik import fetch_orders, KnusprOrderError
     if not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Administrator required")
         return
     runtime = _runtime_or_error(hass, connection, msg)
     if runtime is None:
         return
-    from .knuspr_oauth import access_token, OAuthConnectionError
     try:
-        token = await access_token(hass)
-    except OAuthConnectionError as err:
-        connection.send_error(msg["id"], "not_authenticated", str(err))
-        return
-    try:
-        orders = await fetch_last_three(hass, token)
+        orders = await fetch_orders(hass)
         staged = runtime.store.stage_knuspr_orders(orders)
         await runtime.async_changed()
-    except KnusprError as err:
+    except KnusprOrderError as err:
         connection.send_error(msg["id"], "knuspr_error", str(err))
         return
     connection.send_result(msg["id"], {"orders_staged": len(staged)})
+
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_login"})
 @websocket_api.async_response

@@ -175,6 +175,8 @@ CONF_PRINTER_ENABLED: Final = "printer_enabled"
 CONF_PRINTER_URL: Final = "printer_url"
 CONF_LABEL_COPIES: Final = "label_copies"
 CONF_KNUSPR_TOKEN: Final = "knuspr_access_token"
+CONF_KNUSPR_EMAIL: Final = "knuspr_email"
+CONF_KNUSPR_PASSWORD: Final = "knuspr_password"
 
 CODE_FORMAT_LETTERS: Final = "letters_first"  # AB12
 CODE_FORMAT_DIGITS: Final = "digits_first"  # 12AB

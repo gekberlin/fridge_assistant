@@ -527,6 +527,13 @@ ha-icon{--mdc-icon-size:18px;vertical-align:-4px;}
   *,*::before,*::after{transition:none !important;animation:none !important;}
 }
 
+.location-manager-list{display:flex;flex-direction:column;gap:8px;margin:12px 0 20px}
+.location-manager-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 0;border-bottom:1px solid var(--fa-line)}
+.location-manager-row span{flex:1;min-width:140px;font-weight:700}
+.location-manager-row small{color:var(--fa-muted)}
+.location-manager-form{display:flex;flex-direction:column;gap:12px}
+.location-manager-form label{display:flex;flex-direction:column;gap:5px;font-weight:700}
+.location-manager-form input,.location-manager-form select{width:100%;padding:12px;font-size:16px;border:1px solid var(--fa-border);border-radius:12px;background:var(--fa-card);color:var(--fa-text)}
 /* --------------------------------------------------------------- desktop */
 @media (min-width:640px){
   .brand h1{font-size:25px;}

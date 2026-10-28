@@ -30,13 +30,17 @@ SIGNAL_UPDATED: Final = "fridge_assistant_updated"
 # Locations
 LOCATION_FRIDGE: Final = "fridge"
 LOCATION_FREEZER: Final = "freezer"
-LOCATION_PANTRY: Final = "pantry"
-LOCATIONS: Final = [LOCATION_FRIDGE, LOCATION_FREEZER, LOCATION_PANTRY]
+LOCATION_PANTRY: Final = "pantry"  # Legacy / unassigned pantry
+LOCATION_PANTRY_KITCHEN: Final = "pantry_kitchen"
+LOCATION_PANTRY_CHAMBER: Final = "pantry_chamber"
+LOCATIONS: Final = [LOCATION_FRIDGE, LOCATION_FREEZER, LOCATION_PANTRY, LOCATION_PANTRY_KITCHEN, LOCATION_PANTRY_CHAMBER]
 
 LOCATION_META: Final = {
     LOCATION_FRIDGE: {"label": "Koelkast", "emoji": "🧊", "icon": "mdi:fridge"},
     LOCATION_FREEZER: {"label": "Vriezer", "emoji": "❄️", "icon": "mdi:snowflake"},
     LOCATION_PANTRY: {"label": "Buiten koelkast", "emoji": "🧺", "icon": "mdi:basket-outline"},
+    LOCATION_PANTRY_KITCHEN: {"label": "Vorratsschrank Küche", "emoji": "🧺", "icon": "mdi:cupboard"},
+    LOCATION_PANTRY_CHAMBER: {"label": "Vorratsschrank Kammer", "emoji": "🧺", "icon": "mdi:cupboard"},
 }
 # English labels for server-rendered text (printed labels, notifications).
 # The panel translates location_meta itself; this covers backend-only output.
@@ -44,6 +48,8 @@ LOCATION_LABELS_EN: Final = {
     LOCATION_FRIDGE: "Fridge",
     LOCATION_FREEZER: "Freezer",
     LOCATION_PANTRY: "Pantry",
+    LOCATION_PANTRY_KITCHEN: "Kitchen pantry",
+    LOCATION_PANTRY_CHAMBER: "Storage-room pantry",
 }
 
 # Categories (keys must match seed_templates.json). The four meal-time

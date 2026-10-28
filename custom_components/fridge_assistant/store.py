@@ -205,16 +205,53 @@ class FridgeStore:
             hass, STORAGE_VERSION, STORAGE_KEY, atomic_writes=True
         )
         self.items: dict[str, dict[str, Any]] = {}
+        self.locations = self._default_locations()
         self.user_templates: dict[str, dict[str, Any]] = {}
         self.hidden: set[str] = set()
         self.history: list[dict[str, Any]] = []  # newest first, capped
         self._seed: dict[str, dict[str, Any]] = {}
+
+    @staticmethod
+    def _default_locations():
+        return {
+            "fridge": {"name": "Kühlschrank", "storage_type": "fridge"},
+            "freezer": {"name": "Tiefkühlschrank", "storage_type": "freezer"},
+            "pantry": {"name": "Vorrat (bisher)", "storage_type": "pantry"},
+            "pantry_kitchen": {"name": "Vorratsschrank Küche", "storage_type": "pantry"},
+            "pantry_chamber": {"name": "Vorratsschrank Kammer", "storage_type": "pantry"},
+        }
+
+    def add_location(self, location_id: str, name: str, storage_type: str):
+        import re
+        if not re.fullmatch(r"[a-z][a-z0-9_]{1,63}", location_id):
+            raise ValueError("Invalid location id")
+        if location_id in self.locations:
+            raise ValueError("Location already exists")
+        if storage_type not in ("fridge", "freezer", "pantry"):
+            raise ValueError("Invalid storage type")
+        if not name.strip():
+            raise ValueError("Location name required")
+        self.locations[location_id] = {"name": name.strip(), "storage_type": storage_type}
+
+    def rename_location(self, location_id: str, name: str):
+        if location_id not in self.locations or not name.strip():
+            raise ValueError("Unknown location or empty name")
+        self.locations[location_id]["name"] = name.strip()
+
+    def remove_location(self, location_id: str):
+        if location_id not in self.locations:
+            raise ValueError("Unknown location")
+        if any(i.get("location") == location_id for i in self.items.values()):
+            raise ValueError("Move all items before deleting a location")
+        del self.locations[location_id]
 
     # ---- loading / saving -------------------------------------------------
 
     async def async_load(self) -> None:
         data = await self._store.async_load()
         if data:
+            if "locations" in data:
+                self.locations = {k: v for k, v in data["locations"].items() if isinstance(v, dict) and v.get("storage_type") in ("fridge", "freezer", "pantry")}
             self.items = {i["id"]: i for i in data.get("items", []) if i.get("id")}
             self.user_templates = {
                 t["id"]: t for t in data.get("user_templates", []) if t.get("id")
@@ -247,6 +284,7 @@ class FridgeStore:
         await self._store.async_save(
             {
                 "items": list(self.items.values()),
+                "locations": self.locations,
                 "user_templates": list(self.user_templates.values()),
                 "hidden": list(self.hidden),
                 "history": self.history,
@@ -449,7 +487,9 @@ class FridgeStore:
         today = now.date()
         # Accept legacy Dutch values from old automations / service calls.
         loc = canonical_location(data.get("location"))
-        location = loc if loc in LOCATIONS else LOCATIONS[0]
+        if loc is not None and loc not in self.locations:
+            raise ValueError(f"Unknown storage location: {loc}")
+        location = loc or next(iter(self.locations), "fridge")
 
         template = self.get_template(data.get("template_id"))
         if template is None and data.get("contents"):
@@ -462,7 +502,7 @@ class FridgeStore:
         expiry_date = data.get("expiry_date")
         expiry_source = data.get("expiry_source") or SOURCE_MANUAL
         if not expiry_date:
-            days = self.shelf_life_days(template, location)
+            days = self.shelf_life_days(template, self.locations.get(location, {}).get("storage_type", "pantry"))
             if days is not None:
                 base = parse_date(added_date) or today
                 expiry_date = (base + _days(days)).isoformat()
@@ -555,7 +595,7 @@ class FridgeStore:
             # break filtering/labels.
             if key == "location":
                 value = canonical_location(value)
-                if value not in LOCATIONS:
+                if value not in self.locations:
                     continue
             if key == "kind":
                 value = canonical_kind(value)

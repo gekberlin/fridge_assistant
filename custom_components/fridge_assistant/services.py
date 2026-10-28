@@ -127,9 +127,7 @@ ADD_ITEM_SCHEMA = vol.Schema(
         vol.Optional("contents"): cv.string,
         # Legacy Dutch values stay accepted so old automations keep working;
         # store.build_item canonicalises them to the English ones.
-        vol.Optional("location", default=LOCATIONS[0]): vol.In(
-            [*LOCATIONS, *LEGACY_LOCATIONS]
-        ),
+        vol.Optional("location", default=LOCATIONS[0]): cv.string,
         vol.Optional("category"): cv.string,
         vol.Optional("kind"): cv.string,
         vol.Optional("template_id"): cv.string,

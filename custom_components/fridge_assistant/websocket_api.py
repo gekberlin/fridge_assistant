@@ -30,6 +30,7 @@ from .const import (
     CONF_PRINTER_URL,
     DEFAULT_PRINTER_URL,
     CONF_WARN_DAYS,
+    CONF_KNUSPR_TOKEN,
     DOMAIN,
     HISTORY_ACTIONS,
     MAX_PORTIONS,
@@ -110,6 +111,8 @@ def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_get_state)
     websocket_api.async_register_command(hass, ws_manage_location)
     websocket_api.async_register_command(hass, ws_knuspr_import_rows)
+    websocket_api.async_register_command(hass, ws_knuspr_discover)
+    websocket_api.async_register_command(hass, ws_knuspr_fetch)
     websocket_api.async_register_command(hass, ws_add_item)
     websocket_api.async_register_command(hass, ws_update_item)
     websocket_api.async_register_command(hass, ws_remove_item)
@@ -826,3 +829,39 @@ async def ws_knuspr_import_rows(hass, connection, msg):
         imported.append(item["id"])
     await runtime.async_changed()
     connection.send_result(msg["id"], {"imported_ids": imported, "skipped": len(requested) - len(imported)})
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_discover"})
+@websocket_api.async_response
+async def ws_knuspr_discover(hass, connection, msg):
+    """On-demand metadata check; no credentials required."""
+    from .knuspr_client import discover
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
+    connection.send_result(msg["id"], await discover(hass))
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_fetch"})
+@websocket_api.async_response
+async def ws_knuspr_fetch(hass, connection, msg):
+    """Explicitly fetch three delivered orders, never in the background."""
+    from .knuspr_client import fetch_last_three, KnusprError
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
+    runtime = _runtime_or_error(hass, connection, msg)
+    if runtime is None:
+        return
+    token = str(runtime.entry.options.get(CONF_KNUSPR_TOKEN) or "")
+    if not token:
+        connection.send_error(msg["id"], "not_authenticated",
+                              "Configure Knuspr OAuth access token first")
+        return
+    try:
+        orders = await fetch_last_three(hass, token)
+        staged = runtime.store.stage_knuspr_orders(orders)
+        await runtime.async_changed()
+    except KnusprError as err:
+        connection.send_error(msg["id"], "knuspr_error", str(err))
+        return
+    connection.send_result(msg["id"], {"orders_staged": len(staged)})

@@ -242,6 +242,28 @@ Fridge Assistant isn't in the default HACS store, so add it as a custom reposito
 Copy `custom_components/fridge_assistant` into your Home Assistant `config/custom_components/`
 directory, restart Home Assistant, and follow steps 4–5 above.
 
+## Knuspr MCP (experimental, manual only)
+
+The panel includes **Knuspr orders → Check MCP connection** to inspect the
+public OAuth discovery response from your own Home Assistant installation.
+**Fetch last 3 orders** is manual-only; there is no background polling or
+automatic inventory booking. Review and select products and storage locations
+before importing.
+
+The authenticated client currently requires a valid OAuth access token in
+**Settings → Devices & Services → Fridge Assistant → Configure → Knuspr access
+token** (temporarily represented by the technical key `knuspr_access_token`
+until option translations are added). **It does not yet implement interactive
+OAuth login or token renewal**, and ChatGPT's connected Knuspr credentials
+cannot be reused automatically. Do not paste your Knuspr password into this
+field. The integration stores the provided token in Home Assistant configuration
+entry options; only use a token you are authorized to use and consider its
+local storage implications.
+
+The MCP endpoint is `https://mcp.knuspr.de/mcp`. Knuspr's support for
+arbitrary third-party client registration is not yet verified. Run discovery
+first. Requests are made only on pressing the button.
+
 ## Configuration
 
 All options live under **Settings → Devices & Services → Fridge Assistant → Configure**:

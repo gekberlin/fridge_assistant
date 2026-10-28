@@ -160,6 +160,43 @@ class FridgeAssistantPanel extends HTMLElement {
   _openModal(html, opts) { return openModal(this, html, opts); }
   _wireDateField(inp, placeholder, lang) { return wireDateField(inp, placeholder, lang); }
   _toast(msg, opts) { return toast(this, msg, opts); }
+  _openLocationsManager() {
+    const labels = this._lang() === "nl"
+      ? {title:"Opslaglocaties", add:"Locatie toevoegen", name:"Naam", type:"Opslagtype", save:"Opslaan", rename:"Hernoemen", remove:"Verwijderen", error:"Kon locatie niet opslaan"}
+      : {title:"Manage storage locations", add:"Add location", name:"Name", type:"Storage type", save:"Save", rename:"Rename", remove:"Delete", error:"Could not save location"};
+    const rows = (this._state.locations || []).map(id => {
+      const m = this._locMeta(id);
+      const count = (this._state.counts.by_location || {})[id] || 0;
+      return `<div class="location-manager-row" data-id="${esc(id)}"><span>${esc(m.label)} <small>(${count})</small></span><button class="btn ghost" data-rename="${esc(id)}">${labels.rename}</button><button class="btn ghost" data-remove="${esc(id)}" ${count ? "disabled" : ""}>${labels.remove}</button></div>`;
+    }).join("");
+    const {modal, close} = this._openModal(`<h2>${labels.title}</h2><div class="location-manager-list">${rows}</div><h3>${labels.add}</h3>
+      <form id="location-create" class="location-manager-form"><label>${labels.name}<input name="name" required maxlength="80"></label>
+      <label>${labels.type}<select name="storage_type"><option value="pantry">Pantry / Vorrat</option><option value="fridge">Fridge / Kühlschrank</option><option value="freezer">Freezer / Tiefkühlung</option></select></label>
+      <button class="btn primary" type="submit">${labels.save}</button></form>`);
+    const mutate = async payload => {
+      try {
+        await this._call("manage_location", payload);
+        close();
+        this._toast(labels.save);
+      } catch (err) { this._toast(`${labels.error}: ${err.message || err}`); }
+    };
+    modal.querySelector("#location-create").addEventListener("submit", ev => {
+      ev.preventDefault();
+      const form = ev.currentTarget;
+      const name = form.elements.name.value.trim();
+      const id = "loc_" + (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, "").slice(0,16) : Date.now().toString(36));
+      if (name) mutate({action:"add", location_id:id, name, storage_type:form.elements.storage_type.value});
+    });
+    modal.querySelectorAll("[data-rename]").forEach(btn => btn.addEventListener("click", () => {
+      const id = btn.dataset.rename;
+      const name = prompt(labels.name, this._locMeta(id).label);
+      if (name && name.trim()) mutate({action:"rename", location_id:id, name:name.trim()});
+    }));
+    modal.querySelectorAll("[data-remove]").forEach(btn => btn.addEventListener("click", () => {
+      const id = btn.dataset.remove;
+      if (confirm(`${labels.remove}: ${this._locMeta(id).label}?`)) mutate({action:"remove", location_id:id});
+    }));
+  }
   _openAddModal(prefill, editItem) { return openAddModal(this, prefill, editItem); }
   _aiEstimate(name, ctx) { return aiEstimate(this, name, ctx); }
   _openTemplatePicker(onPick) { return openTemplatePicker(this, onPick); }
@@ -201,6 +238,7 @@ class FridgeAssistantPanel extends HTMLElement {
             <div class="brand"><ha-icon class="brand-emoji" icon="mdi:fridge-outline"></ha-icon><h1>${this.t("appTitle")}</h1></div>
             <span class="spacer"></span>
             <button class="icon-btn" id="btn-history" title="${this.t("historyTooltip", 0)}"><ha-icon icon="mdi:history"></ha-icon></button>
+            <button class="icon-btn" id="btn-locations" title="Lagerorte verwalten"><ha-icon icon="mdi:map-marker-multiple-outline"></ha-icon></button>
             <button class="icon-btn" id="btn-templates" title="${this.t("manageTemplates")}"><ha-icon icon="mdi:book-multiple"></ha-icon></button>
             <button class="icon-btn" id="btn-settings" title="${this.t("settings")}"><ha-icon icon="mdi:cog-outline"></ha-icon></button>
           </div>
@@ -224,6 +262,7 @@ class FridgeAssistantPanel extends HTMLElement {
     $("btn-clean").addEventListener("click", () => this._openCleanModal());
     $("btn-history").addEventListener("click", () => this._openHistory());
     $("btn-templates").addEventListener("click", () => this._openTemplatesManager());
+    $("btn-locations").addEventListener("click", () => this._openLocationsManager());
     $("btn-settings").addEventListener("click", () => {
       // SPA navigation: a hard location change reloads the whole HA frontend.
       history.pushState(null, "", "/config/integrations/integration/fridge_assistant");

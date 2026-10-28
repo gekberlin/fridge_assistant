@@ -144,7 +144,7 @@ export function openAddModal(panel, prefill = {}, editItem = null) {
         <button type="button" class="s-take" id="s-take" title="${panel.t("useTemplateNameTitle")}">
           <span class="s-emoji">${t.emoji || "📋"}</span>
           <div class="s-body"><b>${esc(t.name)}</b>
-            <div class="s-sub">${noHere ? panel.t("notSuitableHere") : panel.t("daysAtLocation", panel._locMeta(m.location).label, sl[m.location])}${t.notes ? " · " + esc(t.notes) : ""}</div></div>
+            <div class="s-sub">${noHere ? panel.t("notSuitableHere") : panel.t("daysAtLocation", panel._locMeta(m.location).label, sl[storageType])}${t.notes ? " · " + esc(t.notes) : ""}</div></div>
         </button>
         <div class="s-actions">
           ${panel._state.options.ai_enabled ? `<button class="s-mini" id="s-ai" title="${panel.t("aiEstimateTitle")}"><ha-icon icon="mdi:creation"></ha-icon></button>` : ""}

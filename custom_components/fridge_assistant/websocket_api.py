@@ -114,6 +114,7 @@ def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_knuspr_discover)
     websocket_api.async_register_command(hass, ws_knuspr_fetch)
     websocket_api.async_register_command(hass, ws_knuspr_login)
+    websocket_api.async_register_command(hass, ws_knuspr_test_ha_redirect)
     websocket_api.async_register_command(hass, ws_add_item)
     websocket_api.async_register_command(hass, ws_update_item)
     websocket_api.async_register_command(hass, ws_remove_item)
@@ -882,3 +883,13 @@ async def ws_knuspr_login(hass, connection, msg):
         connection.send_error(msg["id"], "oauth_error", str(err))
         return
     connection.send_result(msg["id"], {"authorization_url": url})
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_test_ha_redirect"})
+@websocket_api.async_response
+async def ws_knuspr_test_ha_redirect(hass, connection, msg):
+    """One-shot DCR check for the standard Home Assistant OAuth URI."""
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
+    from .knuspr_oauth import test_ha_redirect_registration
+    connection.send_result(msg["id"], await test_ha_redirect_registration(hass))

@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from rohlik_api import RohlikAPI, RohlikAPIError, InvalidCredentialsError, SITES
+from rohlik_api import RohlikAPIError, InvalidCredentialsError
 
 
 class KnusprOrderError(Exception):
@@ -20,13 +20,22 @@ def _sort_date(order: dict[str, Any]) -> str:
                or order.get("deliveryTime") or order.get("deliveredAt") or "")
 
 
-async def fetch_orders(email: str, password: str) -> list[dict[str, Any]]:
-    """Fetch most recent three delivered orders plus their items, only on demand."""
-    client = RohlikAPI(email, password, base_url=SITES["de"].base_url)
+async def fetch_orders(hass) -> list[dict[str, Any]]:
+    """Reuse the active RohlikCZ integration session; no credential duplication."""
+    accounts = [
+        entry for entry in hass.config_entries.async_entries("rohlikcz")
+        if entry.data.get("site") == "de" and getattr(entry, "runtime_data", None)
+    ]
+    if not accounts:
+        raise KnusprOrderError(
+            "Install HA-RohlikCZ, configure site Knuspr.de, then retry"
+        )
+    account = accounts[0].runtime_data
+    client = getattr(account, "_client", None)
+    if client is None:
+        raise KnusprOrderError("Knuspr account session is not ready")
     try:
-        await client.login()
         listing = await client.orders.get_all_delivered()
-        # rohlik-api normally returns a list; tolerate a wrapped result.
         if isinstance(listing, dict):
             listing = listing.get("orders") or listing.get("data") or []
         if not isinstance(listing, list):
@@ -35,33 +44,18 @@ async def fetch_orders(email: str, password: str) -> list[dict[str, Any]]:
         listing.sort(key=_sort_date, reverse=True)
         result = []
         for summary in listing[:3]:
-            order_id = summary["id"]
-            detail = await client.orders.get_detail(int(order_id))
-            if not isinstance(detail, dict):
-                raise KnusprOrderError("Knuspr returned an unrecognized order detail")
-            raw_items = detail.get("items") or []
-            if not isinstance(raw_items, list):
-                raise KnusprOrderError("Knuspr returned an unrecognized item list")
-            rows = []
-            for item in raw_items:
-                if not isinstance(item, dict):
-                    continue
-                rows.append({
-                    "id": item.get("id"),
-                    "name": item.get("name"),
-                    "quantity": item.get("amount", item.get("quantity", 1)),
-                    "unit": item.get("textualAmount", ""),
-                })
+            detail = await client.orders.get_detail(int(summary["id"]))
+            if not isinstance(detail, dict) or not isinstance(detail.get("items"), list):
+                raise KnusprOrderError("Knuspr returned invalid order items")
+            rows = [{
+                "id": i.get("id"), "name": i.get("name"),
+                "quantity": i.get("amount", i.get("quantity", 1)),
+                "unit": i.get("textualAmount", ""),
+            } for i in detail["items"] if isinstance(i, dict)]
             result.append({
-                "id": order_id,
-                "orderTime": _sort_date(summary),
-                "state": "delivered",
-                "items": rows,
+                "id": summary["id"], "orderTime": _sort_date(summary),
+                "state": "delivered", "items": rows,
             })
         return result
-    except InvalidCredentialsError as err:
-        raise KnusprOrderError("Knuspr login rejected; check your credentials") from err
-    except RohlikAPIError as err:
-        raise KnusprOrderError("Knuspr order request failed; check Home Assistant logs") from err
-    finally:
-        await client.close()
+    except (RohlikAPIError, InvalidCredentialsError) as err:
+        raise KnusprOrderError("Knuspr order retrieval failed; check HA-RohlikCZ") from err

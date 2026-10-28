@@ -242,21 +242,21 @@ Fridge Assistant isn't in the default HACS store, so add it as a custom reposito
 Copy `custom_components/fridge_assistant` into your Home Assistant `config/custom_components/`
 directory, restart Home Assistant, and follow steps 4–5 above.
 
-## Knuspr MCP (experimental; manual access only)
+## Knuspr.de import (manual only)
 
-Open the basket icon in the Fridge Assistant panel, choose **Connect to
-Knuspr**, sign in to Knuspr in the browser and return to Fridge Assistant.
-The integration tries RFC 7591 dynamic client registration and PKCE S256.
-An externally reachable **HTTPS Home Assistant URL** is required for the OAuth
-callback. Client registration can fail if the provider restricts third-party
-clients; the presence of a registration endpoint is not a guarantee.
+This experimental feature reuses the separately installed
+[HA-RohlikCZ](https://github.com/dvejsada/HA-RohlikCZ) integration.
+Install and configure HA-RohlikCZ with **site Knuspr.de (de)** first.
+Fridge Assistant does not collect or store a second copy of the
+account credentials. The account is accessed through the active
+RohlikCZ coordinator only when an HA administrator explicitly presses
+**Fetch last 3 orders** in the Fridge Assistant Knuspr dialog.
 
-After connecting, click **Fetch last 3 orders**. No background polling, no
-automatic booking. Choose exactly which items and storage locations to import.
-Access and refresh tokens are stored in your local Home Assistant config
-entry options. The login is experimental and has not been validated with a
-live Knuspr OAuth exchange. A manual token input remains as a legacy option,
-but the new browser login uses its own token storage.
+The dialog lists three delivered orders, allows selecting individual
+items or all items, and assigns physical locations before booking.
+No scheduled fetching or automatic inventory updates are enabled.
+Knuspr's unofficial web API is subject to change; this adapter has not
+yet been tested in a real HA instance with a Knuspr account.
 
 ## Configuration
 

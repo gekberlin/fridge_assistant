@@ -9,7 +9,7 @@ export function openKnuspr(panel) {
   const texts = panel._lang() === "nl"
     ? {title:"Knuspr-bestellingen", empty:"Nog geen bestellingen opgehaald. Configureer eerst de MCP-brug.", all:"Alles selecteren", import:"Geselecteerde artikelen toevoegen", done:"Al toegevoegd", choose:"Opslaglocatie", loading:"Overgenomen"}
     : {title:"Knuspr orders", empty:"No orders fetched yet. Configure the authenticated MCP bridge first.", all:"Select all", import:"Import selected items", done:"Already imported", choose:"Storage location", loading:"Imported"};
-  const { modal, close } = openModal(panel, `<h2>${texts.title}</h2><div class="kn-controls"><button class="btn primary" id="kn-fetch" type="button">Letzte 3 Bestellungen abrufen</button><button class="btn ghost" id="kn-discover" type="button">MCP-Verbindung prüfen</button></div><p id="kn-status" role="status"></p>
+  const { modal, close } = openModal(panel, `<h2>${texts.title}</h2><div class="kn-controls"><button class="btn ghost" id="kn-login" type="button">Mit Knuspr verbinden</button><button class="btn primary" id="kn-fetch" type="button">Letzte 3 Bestellungen abrufen</button><button class="btn ghost" id="kn-discover" type="button">MCP-Verbindung prüfen</button></div><p id="kn-status" role="status"></p>
     ${!orders.length ? `<p>${texts.empty}</p>` : `
     <label class="field">Order <select id="kn-order">
       ${orders.map(o => `<option value="${esc(o.id)}">${esc(o.order_time || o.id)} · ${o.items.length} items</option>`).join("")}
@@ -17,6 +17,16 @@ export function openKnuspr(panel) {
     <button class="btn ghost" id="kn-all" type="button">${texts.all}</button>
     <button class="btn primary" id="kn-import" type="button">${texts.import}</button>`}`);
   const status = modal.querySelector("#kn-status");
+  modal.querySelector("#kn-login").addEventListener("click", async ev => {
+    ev.currentTarget.disabled = true;
+    try {
+      const { authorization_url } = await panel._call("knuspr_login");
+      window.open(authorization_url, "_blank", "noopener,noreferrer");
+      status.textContent = "Bitte im neuen Browserfenster bei Knuspr anmelden.";
+    } catch (err) {
+      status.textContent = String(err.message || err);
+    } finally { ev.currentTarget.disabled = false; }
+  });
   modal.querySelector("#kn-discover").addEventListener("click", async ev => {
     ev.currentTarget.disabled = true;
     try {

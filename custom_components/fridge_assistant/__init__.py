@@ -28,6 +28,7 @@ from .const import (
 )
 from .coordinator import FridgeRuntime
 from .services import async_setup_services, async_unload_services
+from .knuspr_oauth import KnusprOAuthCallback
 from .store import FridgeStore
 from .websocket_api import async_register_websocket
 
@@ -51,6 +52,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_register_panel(hass)
     async_setup_services(hass)
     async_register_websocket(hass)
+    if not domain_data.get("knuspr_callback_registered"):
+        hass.http.register_view(KnusprOAuthCallback())
+        domain_data["knuspr_callback_registered"] = True
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

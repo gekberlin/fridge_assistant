@@ -23,24 +23,110 @@ class KnusprError(Exception):
 
 
 async def discover(hass) -> dict[str, Any]:
-    """Probe public OAuth metadata (no account access or background traffic)."""
+    """Discover OAuth from the protected MCP resource, not guessed AS paths.
+
+    RFC 9728: the resource may point to metadata via WWW-Authenticate.
+    Authorization-server discovery must use the issuer advertised by that
+    document (it might be on a different hostname).
+    No credentials, orders, or other account data are requested.
+    """
+    import re
+    from urllib.parse import urlparse
+
     session = async_get_clientsession(hass)
-    result = {}
-    for key, url in (("resource", RESOURCE_METADATA), ("authorization", AUTH_METADATA)):
+    result: dict[str, Any] = {}
+    metadata_url = None
+
+    # An unauthenticated MCP initialize elicits the authoritative challenge.
+    try:
+        async with session.post(
+            MCP_URL,
+            headers={"Accept": "application/json, text/event-stream",
+                     "Content-Type": "application/json"},
+            json={"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                  "params": {"protocolVersion": "2025-03-26",
+                             "capabilities": {},
+                             "clientInfo": {"name": "fridge-assistant-discovery",
+                                            "version": "0.7.3"}}},
+            timeout=aiohttp.ClientTimeout(total=12),
+            allow_redirects=False,
+        ) as response:
+            challenge = response.headers.get("WWW-Authenticate", "")
+            result["mcp"] = {
+                "status": response.status,
+                "auth_scheme": challenge.split(" ", 1)[0] if challenge else None,
+            }
+            match = re.search(r'resource_metadata="([^"]+)"', challenge, re.I)
+            if match:
+                metadata_url = match.group(1)
+    except (aiohttp.ClientError, TimeoutError) as err:
+        result["mcp"] = {"error": type(err).__name__}
+
+    # RFC 9728 alternative paths when the server omits the challenge URL.
+    paths = [metadata_url] if metadata_url else [
+        "https://mcp.knuspr.de/.well-known/oauth-protected-resource/mcp",
+        "https://mcp.knuspr.de/.well-known/oauth-protected-resource",
+    ]
+    # Never follow arbitrary server-provided URLs to private hosts.
+    def valid_https_url(url: str) -> bool:
+        parsed = urlparse(url)
+        return parsed.scheme == "https" and bool(parsed.hostname) and (
+            parsed.hostname == "knuspr.de" or parsed.hostname.endswith(".knuspr.de")
+            or parsed.hostname == "rohlik.cz" or parsed.hostname.endswith(".rohlik.cz")
+        ) and parsed.username is None and parsed.password is None
+
+    auth_servers = []
+    for url in paths:
+        if not url or not valid_https_url(url):
+            result["resource"] = {"error": "unsupported_metadata_host"}
+            continue
         try:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=12),
-                                   headers={"Accept": "application/json"}) as response:
-                result[key] = {"status": response.status}
-                if response.status == 200 and "json" in response.content_type:
+                                   headers={"Accept": "application/json"},
+                                   allow_redirects=False) as response:
+                result["resource"] = {"status": response.status, "url": url}
+                if response.status == 200 and response.content_type == "application/json":
                     doc = await response.json()
-                    # Publish only non-secret discovery fields.
-                    result[key]["metadata"] = {k: doc.get(k) for k in (
-                        "resource", "authorization_servers", "issuer",
-                        "authorization_endpoint", "token_endpoint",
-                        "registration_endpoint", "code_challenge_methods_supported",
-                    ) if k in doc}
+                    auth_servers = doc.get("authorization_servers", [])
+                    result["resource"]["authorization_servers"] = auth_servers
+                    if auth_servers:
+                        break
         except (aiohttp.ClientError, TimeoutError) as err:
-            result[key] = {"error": type(err).__name__}
+            result["resource"] = {"error": type(err).__name__, "url": url}
+
+    # The AS metadata is located using the actual issuer URL, not the MCP
+    # resource host. A 404 from one guessed path says nothing about OAuth.
+    if auth_servers:
+        issuer = auth_servers[0]
+        if valid_https_url(issuer):
+            parsed = urlparse(issuer)
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+            suffix = parsed.path.rstrip("/")
+            candidates = [
+                origin + "/.well-known/oauth-authorization-server" + suffix,
+                origin + "/.well-known/openid-configuration" + suffix,
+            ]
+            for url in candidates:
+                try:
+                    async with session.get(url, headers={"Accept": "application/json"},
+                                           timeout=aiohttp.ClientTimeout(total=12),
+                                           allow_redirects=False) as response:
+                        result["authorization"] = {"url": url, "status": response.status}
+                        if response.status == 200 and response.content_type == "application/json":
+                            doc = await response.json()
+                            result["authorization"]["metadata"] = {
+                                k: doc[k] for k in (
+                                    "issuer", "authorization_endpoint", "token_endpoint",
+                                    "registration_endpoint",
+                                    "client_id_metadata_document_supported",
+                                    "code_challenge_methods_supported",
+                                ) if k in doc
+                            }
+                            break
+                except (aiohttp.ClientError, TimeoutError) as err:
+                    result["authorization"] = {"url": url, "error": type(err).__name__}
+        else:
+            result["authorization"] = {"error": "unsupported_authorization_host"}
     return result
 
 

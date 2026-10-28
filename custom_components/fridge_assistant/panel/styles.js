@@ -272,6 +272,8 @@ ha-icon{--mdc-icon-size:18px;vertical-align:-4px;}
 .seg{display:flex;gap:5px;background:var(--fa-soft);border-radius:14px;padding:4px;margin:12px 0;}
 .seg button{flex:1;border:none;background:none;color:var(--fa-text);padding:10px 4px;border-radius:11px;
   font-size:14px;cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap;}
+#f-loc{overflow-x:auto;max-width:100%;min-width:0;scrollbar-width:thin;-webkit-overflow-scrolling:touch;justify-content:flex-start}
+#f-loc button{flex:0 0 auto;padding:10px 12px}
 .seg button.on{background:var(--fa-card);box-shadow:var(--fa-shadow-s);font-weight:800;}
 /* Printer picker in the print modal: queue name + label size per segment. */
 .pp-seg{margin:0 0 12px;}

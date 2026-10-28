@@ -64,7 +64,7 @@ async def start_login(hass) -> str:
         payload = {
             "client_name": "Fridge Assistant (Home Assistant)",
             "redirect_uris": [redirect_uri],
-            "grant_types": ["authorization_code", "refresh_token"],
+            "grant_types": ["authorization_code"],
             "response_types": ["code"],
             "token_endpoint_auth_method": "none",
         }
@@ -73,8 +73,25 @@ async def start_login(hass) -> str:
                                     timeout=aiohttp.ClientTimeout(total=20),
                                     allow_redirects=False) as response:
                 if response.status not in (200, 201):
+                    # RFC 7591 returns useful error/error_description fields.
+                    # Never surface registration responses containing tokens.
+                    reason = "unknown"
+                    try:
+                        error_body = await response.json(content_type=None)
+                        if isinstance(error_body, dict):
+                            code = str(error_body.get("error", "unknown"))
+                            description = str(error_body.get("error_description", ""))
+                            import re
+                            # Keep only short non-sensitive diagnostic identifiers;
+                            # do not reflect arbitrary provider text containing URLs.
+                            if re.fullmatch(r"[a-zA-Z0-9_\\-]{1,70}", code):
+                                reason = code
+                            if description and reason == "unknown":
+                                reason = "invalid_client_metadata_or_redirect_uri"
+                    except (ValueError, aiohttp.ContentTypeError):
+                        pass
                     raise OAuthConnectionError(
-                        f"Knuspr rejected client registration (HTTP {response.status})"
+                        f"Knuspr client registration HTTP {response.status}: {reason}"
                     )
                 registered = await response.json()
         except (aiohttp.ClientError, TimeoutError) as err:

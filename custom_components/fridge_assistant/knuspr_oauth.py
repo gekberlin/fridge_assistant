@@ -86,8 +86,22 @@ async def start_login(hass) -> str:
                             # do not reflect arbitrary provider text containing URLs.
                             if re.fullmatch(r"[a-zA-Z0-9_\\-]{1,70}", code):
                                 reason = code
-                            if description and reason == "unknown":
-                                reason = "invalid_client_metadata_or_redirect_uri"
+                            if description:
+                                # Provider error descriptions help distinguish
+                                # redirect, registration policy and payload errors.
+                                # Redact URLs, email addresses and token-like
+                                # strings before showing anything in the panel.
+                                description = re.sub(r"https?://\\S+", "[URL]", description)
+                                description = re.sub(
+                                    r"\\b[^\\s@]+@[^\\s@]+\\.[^\\s@]+\\b",
+                                    "[email]", description,
+                                )
+                                description = re.sub(
+                                    r"\\b[A-Za-z0-9_-]{32,}\\b", "[redacted]",
+                                    description,
+                                )
+                                description = re.sub(r"[\\r\\n\\t]+", " ", description)
+                                reason += " — " + description[:180]
                     except (ValueError, aiohttp.ContentTypeError):
                         pass
                     raise OAuthConnectionError(

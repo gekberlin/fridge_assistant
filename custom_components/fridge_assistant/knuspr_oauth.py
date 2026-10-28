@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import secrets
 import time
 from urllib.parse import urlencode, urlparse
@@ -23,6 +24,7 @@ CALLBACK_PATH = "/api/fridge_assistant/knuspr/oauth/callback"
 PENDING_KEY = "knuspr_oauth_pending"
 CLIENT_KEY = "knuspr_oauth_client"
 TOKEN_KEY = "knuspr_oauth_token"
+_LOGGER = logging.getLogger(__name__)
 
 
 class OAuthConnectionError(Exception):
@@ -104,6 +106,7 @@ async def start_login(hass) -> str:
                                 reason += " — " + description[:180]
                     except (ValueError, aiohttp.ContentTypeError):
                         pass
+                    _LOGGER.warning("Knuspr OAuth registration rejected: HTTP %s, reason: %s, redirect host: %s, grant: authorization_code, authentication: none", response.status, reason, urlparse(redirect_uri).hostname)
                     raise OAuthConnectionError(
                         f"Knuspr client registration HTTP {response.status}: {reason}"
                     )

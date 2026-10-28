@@ -27,6 +27,43 @@ TOKEN_KEY = "knuspr_oauth_token"
 _LOGGER = logging.getLogger(__name__)
 
 
+
+HA_REDIRECT_URI = "https://my.home-assistant.io/redirect/oauth"
+
+async def test_ha_redirect_registration(hass) -> dict:
+    """Single explicit registration probe, without OAuth login or storing credentials."""
+    session = async_get_clientsession(hass)
+    payload = {
+        "client_name": "Fridge Assistant (Home Assistant)",
+        "redirect_uris": [HA_REDIRECT_URI],
+        "grant_types": ["authorization_code"],
+        "response_types": ["code"],
+        "token_endpoint_auth_method": "none",
+    }
+    try:
+        async with session.post(REGISTER, json=payload,
+                                timeout=aiohttp.ClientTimeout(total=20),
+                                allow_redirects=False) as response:
+            result = {"http_status": response.status, "accepted": response.status in (200, 201)}
+            if not result["accepted"]:
+                try:
+                    body = await response.json(content_type=None)
+                    if isinstance(body, dict):
+                        import re
+                        code = str(body.get("error", "unknown"))
+                        if re.fullmatch(r"[A-Za-z0-9_-]{1,70}", code):
+                            result["error"] = code
+                        desc = str(body.get("error_description") or "").lower()
+                        if "redirect" in desc:
+                            result["hint"] = "redirect_uri_rejected"
+                        elif "registration" in desc or "client" in desc:
+                            result["hint"] = "client_registration_rejected"
+                except (ValueError, aiohttp.ContentTypeError):
+                    pass
+            return result
+    except (aiohttp.ClientError, TimeoutError) as err:
+        return {"error": type(err).__name__, "accepted": False}
+
 class OAuthConnectionError(Exception):
     """Non-sensitive, user-facing OAuth error."""
 

@@ -109,6 +109,7 @@ def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_subscribe)
     websocket_api.async_register_command(hass, ws_get_state)
     websocket_api.async_register_command(hass, ws_manage_location)
+    websocket_api.async_register_command(hass, ws_knuspr_import_rows)
     websocket_api.async_register_command(hass, ws_add_item)
     websocket_api.async_register_command(hass, ws_update_item)
     websocket_api.async_register_command(hass, ws_remove_item)
@@ -190,6 +191,8 @@ def _serialize_state(hass: HomeAssistant, runtime: FridgeRuntime) -> dict[str, A
         "categories": CATEGORIES,
         "kinds": KINDS,
         "category_kind": CATEGORY_KIND,
+        "knuspr_orders": runtime.store.knuspr_orders,
+        "knuspr_imported": list(runtime.store.knuspr_imported),
         "locations": list(runtime.store.locations),
         "location_meta": {key: {"label": meta["name"], "storage_type": meta["storage_type"], "emoji": LOCATION_META.get(meta["storage_type"], {}).get("emoji", "🧺"), "icon": LOCATION_META.get(meta["storage_type"], {}).get("icon", "mdi:cupboard")} for key, meta in runtime.store.locations.items()},
         "counts": counts,
@@ -780,3 +783,46 @@ async def ws_manage_location(hass, connection, msg) -> None:
         return
     await runtime.async_changed()
     connection.send_result(msg["id"], {"locations": runtime.store.locations})
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/knuspr_import_rows",
+    vol.Required("order_id"): cv.string,
+    vol.Required("source_keys"): [cv.string],
+    vol.Required("location_by_key"): {cv.string: cv.string},
+})
+@websocket_api.async_response
+async def ws_knuspr_import_rows(hass, connection, msg):
+    """Commit explicitly selected, staged Knuspr positions exactly once."""
+    runtime = _runtime_or_error(hass, connection, msg)
+    if runtime is None:
+        return
+    order = next((o for o in runtime.store.knuspr_orders if o["id"] == msg["order_id"]), None)
+    if order is None:
+        connection.send_error(msg["id"], "not_found", "Order not staged")
+        return
+    rows = {row["source_key"]: row for row in order["items"]}
+    requested = set(msg["source_keys"])
+    if not requested <= rows.keys():
+        connection.send_error(msg["id"], "invalid_items", "Unknown order position")
+        return
+    locations = msg["location_by_key"]
+    for key in requested:
+        if key not in runtime.store.knuspr_imported and locations.get(key) not in runtime.store.locations:
+            connection.send_error(msg["id"], "invalid_location", f"Choose a valid location for {key}")
+            return
+    imported = []
+    by, by_name = await runtime.async_user_attrs(connection.user.id)
+    for key in sorted(requested):
+        if key in runtime.store.knuspr_imported:
+            continue
+        row = rows[key]
+        item = await runtime.async_add_item({
+            "name": row["name"],
+            "location": locations[key],
+            "quantity": str(row.get("quantity") or 1) + (" " + str(row["unit"]) if row.get("unit") else ""),
+            "notes": f"Knuspr order {order['id']} / position {key}",
+        }, by=by, by_name=by_name)
+        runtime.store.knuspr_imported.add(key)
+        imported.append(item["id"])
+    await runtime.async_changed()
+    connection.send_result(msg["id"], {"imported_ids": imported, "skipped": len(requested) - len(imported)})

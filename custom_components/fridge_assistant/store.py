@@ -250,7 +250,8 @@ class FridgeStore:
     async def async_load(self) -> None:
         data = await self._store.async_load()
         if data:
-            self.locations.update({k: v for k, v in data.get("locations", {}).items() if isinstance(v, dict) and v.get("storage_type") in ("fridge", "freezer", "pantry")})
+            if "locations" in data:
+                self.locations = {k: v for k, v in data["locations"].items() if isinstance(v, dict) and v.get("storage_type") in ("fridge", "freezer", "pantry")}
             self.items = {i["id"]: i for i in data.get("items", []) if i.get("id")}
             self.user_templates = {
                 t["id"]: t for t in data.get("user_templates", []) if t.get("id")
@@ -486,7 +487,9 @@ class FridgeStore:
         today = now.date()
         # Accept legacy Dutch values from old automations / service calls.
         loc = canonical_location(data.get("location"))
-        location = loc if loc in self.locations else LOCATIONS[0]
+        if loc is not None and loc not in self.locations:
+            raise ValueError(f"Unknown storage location: {loc}")
+        location = loc or next(iter(self.locations), "fridge")
 
         template = self.get_template(data.get("template_id"))
         if template is None and data.get("contents"):
@@ -499,7 +502,7 @@ class FridgeStore:
         expiry_date = data.get("expiry_date")
         expiry_source = data.get("expiry_source") or SOURCE_MANUAL
         if not expiry_date:
-            days = self.shelf_life_days(template, self.locations[location]["storage_type"])
+            days = self.shelf_life_days(template, self.locations.get(location, {}).get("storage_type", "pantry"))
             if days is not None:
                 base = parse_date(added_date) or today
                 expiry_date = (base + _days(days)).isoformat()

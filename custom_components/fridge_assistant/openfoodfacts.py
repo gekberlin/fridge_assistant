@@ -15,9 +15,9 @@ from difflib import SequenceMatcher
 
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl"
+SEARCH_URL = "https://search.openfoodfacts.org/search"
 FIELDS = "code,product_name,product_name_de,brands,image_front_small_url,image_front_url,image_url,quantity"
-UA = "FridgeAssistant/0.8.9 (https://github.com/gekberlin/fridge_assistant/issues)"
+UA = "FridgeAssistant/0.9.0 (https://github.com/gekberlin/fridge_assistant/issues)"
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -47,8 +47,7 @@ async def search_products(hass, name):
         try:
             async with session.get(
                 SEARCH_URL,
-            params={"search_terms": query, "search_simple": "1", "action": "process",
-                    "json": "1", "page_size": "8", "fields": FIELDS},
+            params={"q": re.sub(r"[^\\w\\s-]", " ", query), "page_size": "8", "langs": "de,en"},
                 headers={"User-Agent": UA, "Accept": "application/json"}, timeout=30,
             ) as response:
                 response.raise_for_status()
@@ -64,7 +63,10 @@ async def search_products(hass, name):
             raise OpenFoodFactsError("Verbindungs-/Antwortfehler: " + type(err).__name__) from err
     results = []
     target = _clean(name)
-    for product in payload.get("products", []):
+    for hit in payload.get("hits", []):
+        product = hit.get("_source", hit) if isinstance(hit, dict) else {}
+        if not isinstance(product, dict):
+            continue
         title = product.get("product_name_de") or product.get("product_name")
         barcode = str(product.get("code") or "")
         if not title or not barcode.isdigit():

@@ -6,6 +6,7 @@ export function openKnuspr(panel) {
   const orders = panel._state.knuspr_orders || [];
   const imported = new Set(panel._state.knuspr_imported || []);
   const locations = panel._state.locations || [];
+  const matched = new Map();
   const texts = panel._lang() === "nl"
     ? {title:"Knuspr-bestellingen", empty:"Nog geen bestellingen geladen. Stel HA-RohlikCZ in voor Knuspr.de en klik op ophalen.", all:"Alles selecteren", import:"Geselecteerde artikelen toevoegen", done:"Al toegevoegd", choose:"Opslaglocatie", loading:"Overgenomen"}
     : {title:"Knuspr orders", empty:"Noch keine Bestellungen geladen. Verbinde zuerst deinen Knuspr-Account per Apple-Login, danach kannst du abrufen.", all:"Select all", import:"Import selected items", done:"Already imported", choose:"Storage location", loading:"Imported"};
@@ -21,10 +22,12 @@ export function openKnuspr(panel) {
   authBox.className = "kn-auth-box";
   authBox.innerHTML = '<p id="kn-auth-message" role="status"></p><div id="kn-auth-link"></div><label>Weiterleitungs-URL nach Apple-Login<input id="kn-auth-callback" type="url" placeholder="http://localhost:8765/callback?code=…"></label><button id="kn-auth-submit" class="btn ghost" type="button">URL übermitteln</button>';
   modal.querySelector(".kn-controls").after(authBox);
+  authBox.hidden = true;
   const authMessage = authBox.querySelector("#kn-auth-message");
   const authLink = authBox.querySelector("#kn-auth-link");
   const showStatus = async () => {
     const result = await panel._call("knuspr_auth_status");
+    authBox.hidden = !(result.login_url || result.awaiting_callback || result.running);
     if (result.login_url) {
       // Never render the authorization URL into HTML, where it could be interpreted.
       authLink.replaceChildren();
@@ -38,6 +41,7 @@ export function openKnuspr(panel) {
     } else if (result.ready) {
       authLink.replaceChildren();
       authMessage.textContent = "Knuspr erfolgreich verbunden.";
+      authBox.hidden = true;
     } else if (result.running) {
       authMessage.textContent = "Anmeldung läuft. Erneut Loginstatus prüfen.";
     } else {
@@ -47,6 +51,7 @@ export function openKnuspr(panel) {
   modal.querySelector("#kn-auth-start").addEventListener("click", async ev => {
     ev.currentTarget.disabled = true;
     try {
+      authBox.hidden = false;
       await panel._call("knuspr_auth_start");
       await showStatus();
     } catch (err) {
@@ -82,6 +87,7 @@ export function openKnuspr(panel) {
     }
   });
   if (!orders.length) return;
+  authBox.hidden = true;
   const list = modal.querySelector("#kn-items");
   const picker = modal.querySelector("#kn-order");
   const options = locations.map(loc => `<option value="${esc(loc)}">${esc(panel._locMeta(loc).label)}</option>`).join("");
@@ -92,14 +98,65 @@ export function openKnuspr(panel) {
       const suggested = locations.includes(row.location) ? row.location : locations[0];
       return `<div class="kn-row" data-key="${esc(row.source_key)}">
         <label><input type="checkbox" class="kn-select" ${done ? "disabled" : "checked"}>
-        <span>${esc(row.name)} · ${esc(String(row.quantity || 1))} ${done ? "✓ " + texts.done : ""}</span></label>
-        <select class="kn-location" aria-label="${texts.choose}" ${done ? "disabled" : ""}>${options}</select></div>`;
+        <span class="kn-product-title">${esc(row.name)} · ${esc(String(row.quantity || 1))} ${done ? "✓ " + texts.done : ""}</span></label>
+        <select class="kn-location" aria-label="${texts.choose}" ${done ? "disabled" : ""}>${options}</select>
+        <button type="button" class="btn ghost kn-off-search" ${done ? "disabled" : ""} title="Produkt bei Open Food Facts suchen">Produktdaten suchen</button>
+        <div class="kn-off-candidates" aria-live="polite"></div></div>`;
     }).join("");
     order.items.forEach((row, i) => {
       const sel = list.children[i]?.querySelector(".kn-location");
       if (sel) sel.value = locations.includes(row.location) ? row.location : locations[0];
     });
   }
+  list.addEventListener("click", async event => {
+    const button = event.target.closest(".kn-off-search");
+    if (!button) return;
+    const element = button.closest(".kn-row");
+    const key = element.dataset.key;
+    const panelArea = element.querySelector(".kn-off-candidates");
+    const order = orders.find(o => o.id === picker.value);
+    button.disabled = true;
+    panelArea.textContent = "Open Food Facts wird durchsucht…";
+    try {
+      const result = await panel._call("knuspr_off_search", {
+        order_id: order.id, source_key: key,
+      });
+      panelArea.replaceChildren();
+      const candidates = result.candidates || [];
+      if (!candidates.length) {
+        panelArea.textContent = "Kein passender Treffer. Originalbezeichnung bleibt erhalten.";
+      }
+      for (const candidate of candidates) {
+        const choice = document.createElement("button");
+        choice.type = "button";
+        choice.className = "kn-off-candidate";
+        if (candidate.photo) {
+          const img = document.createElement("img");
+          img.src = candidate.photo;
+          img.alt = "";
+          img.loading = "lazy";
+          choice.appendChild(img);
+        }
+        const text = document.createElement("span");
+        text.textContent = (candidate.brands ? candidate.brands + " · " : "") +
+          candidate.name + (candidate.quantity ? " · " + candidate.quantity : "") +
+          " (" + candidate.barcode + ")";
+        choice.appendChild(text);
+        choice.addEventListener("click", () => {
+          matched.set(key, candidate);
+          element.querySelector(".kn-product-title").textContent =
+            candidate.name + " · " + (order.items.find(r => r.source_key === key)?.quantity || 1) + " ✓";
+          panelArea.replaceChildren();
+          const confirmed = document.createElement("small");
+          confirmed.textContent = "Open Food Facts Produkt ausgewählt: " + candidate.barcode;
+          panelArea.appendChild(confirmed);
+        });
+        panelArea.appendChild(choice);
+      }
+    } catch (err) {
+      panelArea.textContent = "Produktsuche nicht verfügbar: " + String(err.message || err);
+    } finally { button.disabled = false; }
+  });
   picker.addEventListener("change", render);
   modal.querySelector("#kn-all").addEventListener("click", () =>
     list.querySelectorAll(".kn-select:not(:disabled)").forEach(c => { c.checked = true; }));
@@ -109,11 +166,19 @@ export function openKnuspr(panel) {
     const btn = ev.currentTarget; btn.disabled = true;
     try {
       const location_by_key = {};
-      for (const el of selected) location_by_key[el.dataset.key] = el.querySelector(".kn-location").value;
+      const product_by_key = {};
+      for (const el of selected) {
+        location_by_key[el.dataset.key] = el.querySelector(".kn-location").value;
+        if (matched.has(el.dataset.key)) {
+          const candidate = matched.get(el.dataset.key);
+          product_by_key[el.dataset.key] = {name: candidate.name, barcode: candidate.barcode, photo: candidate.photo || ""};
+        }
+      }
       const result = await panel._call("knuspr_import_rows", {
         order_id: picker.value,
         source_keys: Object.keys(location_by_key),
         location_by_key,
+        product_by_key,
       });
       panel._toast(`${texts.loading}: ${result.imported_ids.length}`);
       close();

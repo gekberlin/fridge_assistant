@@ -566,6 +566,9 @@ ha-icon{--mdc-icon-size:18px;vertical-align:-4px;}
 .kn-auto-option{font:inherit;font-size:12px;line-height:1.4}
 #kn-order{width:100%;font:inherit;font-size:13px}
 @media(max-width:480px){.kn-row{grid-template-columns:minmax(0,1fr) minmax(112px,145px)}}
+.card-product-photo{width:100%;height:100%;max-width:48px;max-height:48px;object-fit:contain;border-radius:8px;display:block;background:var(--fa-card)}
+.kn-row .kn-quantity-label{grid-column:1/-1;display:flex;align-items:center;gap:9px;font-size:12px;color:var(--fa-muted);font-weight:600}
+.kn-row .kn-quantity{width:90px;min-width:65px;max-width:140px;padding:7px 9px;border-radius:9px;border:1px solid var(--fa-border);background:var(--fa-card);color:var(--fa-text);font:inherit;font-size:13px}
 /* --------------------------------------------------------------- desktop */
 @media (min-width:640px){
   .brand h1{font-size:25px;}

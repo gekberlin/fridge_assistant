@@ -89,6 +89,12 @@ export function openKnuspr(panel) {
     try {
       const result = await panel._call("knuspr_fetch", {auto_import: modal.querySelector("#kn-auto").checked});
       status.textContent = result.orders_staged + " Bestellungen abgerufen, " + (result.photo_count || 0) + " Produktfotos, " + (result.auto_imported || 0) + " eingebucht, " + (result.pending_review || 0) + " zur Prüfung.";
+      const diag = result.photo_diagnostics || {};
+      if (!result.photo_count) {
+        panel._toast(diag.catalog_available === false
+          ? "Knuspr MCP stellt die Produktsuche für diese Verbindung nicht bereit; keine Originalfotos möglich."
+          : "Keine Knuspr-Bilder gefunden. Anfragen: " + (diag.catalog_queries ?? "?") + ", Fehler: " + (diag.catalog_errors ?? "?"));
+      }
       close();
       // Updated state is delivered by the normal websocket subscription.
       await panel._call("get_state").then(state => { panel._state = state; });

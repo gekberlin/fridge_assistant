@@ -10,18 +10,18 @@
  * `t()` below. Only nl/en exist; there is no third language.
  */
 
-import { CATEGORY_LABELS, KIND_LABELS, LOCATION_LABELS, STATUS_COLOR, STRINGS } from "./strings.js?v=0.8.8";
-import { STYLES } from "./styles.js?v=0.8.8";
-import { daysLabel, esc, fmtDate } from "./lib/format.js?v=0.8.8";
-import { openModal, toast, wireDateField } from "./lib/surface.js?v=0.8.8";
-import { aiEstimate, openAddModal } from "./views/add-item.js?v=0.8.8";
-import { completeItem, openInspector } from "./views/inspector.js?v=0.8.8";
-import { aiNewTemplate, openTemplateEditor, openTemplatePicker, openTemplatesManager } from "./views/templates.js?v=0.8.8";
-import { eatScanned, onRetailBarcode, onScan, openScanner } from "./views/scanner.js?v=0.8.8";
-import { historyRow, openHistory, relTime } from "./views/history.js?v=0.8.8";
-import { openCleanModal } from "./views/cleanup.js?v=0.8.8";
-import { printSticker } from "./views/print.js?v=0.8.8";
-import { openKnuspr } from "./views/knuspr.js?v=0.8.8";
+import { CATEGORY_LABELS, KIND_LABELS, LOCATION_LABELS, STATUS_COLOR, STRINGS } from "./strings.js?v=0.9.2";
+import { STYLES } from "./styles.js?v=0.9.2";
+import { daysLabel, esc, fmtDate } from "./lib/format.js?v=0.9.2";
+import { openModal, toast, wireDateField } from "./lib/surface.js?v=0.9.2";
+import { aiEstimate, openAddModal } from "./views/add-item.js?v=0.9.2";
+import { completeItem, openInspector } from "./views/inspector.js?v=0.9.2";
+import { aiNewTemplate, openTemplateEditor, openTemplatePicker, openTemplatesManager } from "./views/templates.js?v=0.9.2";
+import { eatScanned, onRetailBarcode, onScan, openScanner } from "./views/scanner.js?v=0.9.2";
+import { historyRow, openHistory, relTime } from "./views/history.js?v=0.9.2";
+import { openCleanModal } from "./views/cleanup.js?v=0.9.2";
+import { printSticker } from "./views/print.js?v=0.9.2";
+import { openKnuspr } from "./views/knuspr.js?v=0.9.2";
 
 class FridgeAssistantPanel extends HTMLElement {
   constructor() {
@@ -471,7 +471,7 @@ class FridgeAssistantPanel extends HTMLElement {
       : "";
     const selected = this._inspectorItemId === i.id ? " selected" : "";
     return `<div class="card${selected}" data-item="${i.id}" role="button" tabindex="0" aria-label="${esc(i.name)}">
-      <div class="card-emoji">${i.emoji || "🍽️"}</div>
+      <div class="card-emoji">${i.photo && /^https:\/\//i.test(i.photo) ? `<img class="card-product-photo" src="${esc(i.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : (i.emoji || "🍽️")}</div>
       <div class="card-main">
         <div class="card-title">${esc(i.name)}</div>
         <div class="card-sub">

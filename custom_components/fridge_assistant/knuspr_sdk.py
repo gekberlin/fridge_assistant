@@ -194,7 +194,45 @@ class KnusprBridge:
                         orders = payload.get("orders") if isinstance(payload, dict) else None
                         if not isinstance(orders, list):
                             raise KnusprSDKError("Unexpected Knuspr order response")
-                        return orders[:3]
+                        orders = orders[:3]
+                        # Order positions already contain Knuspr product IDs.
+                        # Ask the same authenticated MCP for exact product details;
+                        # never infer a barcode from a Knuspr internal product ID.
+                        from .knuspr_product_photos import extract_photo_map, parse_mcp_result
+                        product_ids = list(dict.fromkeys(
+                            int(item["id"])
+                            for order in orders
+                            for item in order.get("items", [])
+                            if isinstance(item, dict)
+                            and str(item.get("id", "")).isdigit()
+                        ))[:100]
+                        photos = {}
+                        if product_ids:
+                            self._phase = "product_details"
+                            try:
+                                # Split requests to keep MCP tool payloads modest.
+                                for start in range(0, len(product_ids), 20):
+                                    batch = product_ids[start:start + 20]
+                                    details = await session.call_tool(
+                                        "get_product_details", {"product_ids": batch}
+                                    )
+                                    if not getattr(details, "isError", False):
+                                        photos.update(extract_photo_map(parse_mcp_result(details)))
+                            except Exception as err:
+                                # Product enrichment is optional. A failed or
+                                # changed MCP response must not lose the orders.
+                                _LOGGER.warning(
+                                    "Knuspr product photos unavailable: %s",
+                                    type(err).__name__,
+                                )
+                        for order in orders:
+                            for item in order.get("items", []):
+                                if isinstance(item, dict):
+                                    photo = photos.get(str(item.get("id")))
+                                    if photo:
+                                        item["photo"] = photo
+                        self._phase = "connected"
+                        return orders
         except KnusprSDKError as err:
             self._error = str(err)
             self._ready = False

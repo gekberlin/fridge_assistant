@@ -111,6 +111,7 @@ def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_get_state)
     websocket_api.async_register_command(hass, ws_manage_location)
     websocket_api.async_register_command(hass, ws_knuspr_import_rows)
+    websocket_api.async_register_command(hass, ws_knuspr_off_search)
     websocket_api.async_register_command(hass, ws_knuspr_discover)
     websocket_api.async_register_command(hass, ws_knuspr_fetch)
     websocket_api.async_register_command(hass, ws_knuspr_auth_status)
@@ -798,6 +799,11 @@ async def ws_manage_location(hass, connection, msg) -> None:
     vol.Required("order_id"): cv.string,
     vol.Required("source_keys"): [cv.string],
     vol.Required("location_by_key"): {cv.string: cv.string},
+    vol.Optional("product_by_key", default={}): {cv.string: vol.Schema({
+        vol.Required("name"): cv.string,
+        vol.Required("barcode"): cv.string,
+        vol.Optional("photo", default=""): cv.string,
+    })},
 })
 @websocket_api.async_response
 async def ws_knuspr_import_rows(hass, connection, msg):
@@ -819,14 +825,24 @@ async def ws_knuspr_import_rows(hass, connection, msg):
         if key not in runtime.store.knuspr_imported and locations.get(key) not in runtime.store.locations:
             connection.send_error(msg["id"], "invalid_location", f"Choose a valid location for {key}")
             return
+    chosen_products = msg.get("product_by_key", {})
+    if not set(chosen_products).issubset(requested):
+        connection.send_error(msg["id"], "invalid_items", "Product choices must belong to selected items")
+        return
     imported = []
     by, by_name = await runtime.async_user_attrs(connection.user.id)
     for key in sorted(requested):
         if key in runtime.store.knuspr_imported:
             continue
         row = rows[key]
+        chosen = chosen_products.get(key) or {}
+        photo = chosen.get("photo", "")
+        if photo and (not photo.startswith("https://") or "openfoodfacts.org/" not in photo):
+            photo = ""
         item = await runtime.async_add_item({
-            "name": row["name"],
+            "name": chosen.get("name") or row["name"],
+            "barcode": chosen.get("barcode") or None,
+            "photo": photo or None,
             "location": locations[key],
             "quantity": str(row.get("quantity") or 1) + (" " + str(row["unit"]) if row.get("unit") else ""),
             "notes": f"Knuspr order {order['id']} / position {key}",
@@ -835,6 +851,35 @@ async def ws_knuspr_import_rows(hass, connection, msg):
         imported.append(item["id"])
     await runtime.async_changed()
     connection.send_result(msg["id"], {"imported_ids": imported, "skipped": len(requested) - len(imported)})
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/knuspr_off_search",
+    vol.Required("order_id"): cv.string,
+    vol.Required("source_key"): cv.string,
+})
+@websocket_api.async_response
+async def ws_knuspr_off_search(hass, connection, msg):
+    """On-demand candidate search: never select a product automatically."""
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
+    runtime = _runtime_or_error(hass, connection, msg)
+    if runtime is None:
+        return
+    order = next((o for o in runtime.store.knuspr_orders if o["id"] == msg["order_id"]), None)
+    row = next((r for r in order["items"] if r["source_key"] == msg["source_key"]), None) if order else None
+    if row is None:
+        connection.send_error(msg["id"], "not_found", "Order position not found")
+        return
+    from .openfoodfacts import search_products
+    try:
+        candidates = await search_products(hass, row["name"])
+    except Exception as err:
+        _LOGGER.warning("Open Food Facts lookup failed: %s", type(err).__name__)
+        connection.send_error(msg["id"], "off_unavailable", "Open Food Facts lookup failed")
+        return
+    connection.send_result(msg["id"], {"candidates": candidates})
+
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_discover"})
 @websocket_api.async_response

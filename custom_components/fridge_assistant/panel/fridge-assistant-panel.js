@@ -490,4 +490,6 @@ class FridgeAssistantPanel extends HTMLElement {
   }
 }
 
-customElements.define("fridge-assistant-panel", FridgeAssistantPanel);
+if (!customElements.get("fridge-assistant-panel")) {
+  customElements.define("fridge-assistant-panel", FridgeAssistantPanel);
+}

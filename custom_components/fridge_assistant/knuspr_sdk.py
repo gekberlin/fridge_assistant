@@ -283,6 +283,42 @@ class KnusprBridge:
                                     photo = photos.get(str(item.get("id")))
                                     if photo:
                                         item["photo"] = photo
+                        # Fallback only when the external MCP cannot provide
+                        # its catalog image tool. Open Food Facts is a *different*
+                        # source and may not have a matching product at all.
+                        # Keep the manual confirmation path for uncertain hits.
+                        if not image_diagnostics["catalog_available"] and not photos:
+                            from .openfoodfacts import search_products
+                            self._phase = "off_photo_fallback"
+                            attempted = 0
+                            matched = 0
+                            # Keep this short: OFF limits full-text searches to
+                            # about 10/minute, and HA must remain responsive.
+                            for order in orders:
+                                for item in order.get("items", []):
+                                    if attempted >= 8:
+                                        break
+                                    if not isinstance(item, dict) or not item.get("name"):
+                                        continue
+                                    attempted += 1
+                                    try:
+                                        choices = await search_products(self.hass, item["name"])
+                                        # Strong text similarity only. Never use
+                                        # an unrelated product photo or EAN.
+                                        best = next((c for c in choices if
+                                            c.get("photo") and c.get("score", 0) >= 0.93), None)
+                                        if best:
+                                            item["photo"] = best["photo"]
+                                            item["photo_source"] = "openfoodfacts"
+                                            matched += 1
+                                    except Exception as err:
+                                        _LOGGER.warning("OFF photo fallback: %s", type(err).__name__)
+                                if attempted >= 8:
+                                    break
+                            self._photo_diagnostics.update({
+                                "off_queries": attempted,
+                                "off_matched": matched,
+                            })
                         self._phase = "connected"
                         return orders
         except KnusprSDKError as err:

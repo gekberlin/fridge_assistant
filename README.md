@@ -270,6 +270,23 @@ Assistant's local `.storage` area, not in the browser. Protect HA backups
 accordingly. The flow relies on third-party MCP SDK behavior and has not
 yet been tested end-to-end in HA.
 
+
+### Open Food Facts matching (optional)
+
+For each staged Knuspr line use **Produktdaten suchen** to request up to five
+candidates from Open Food Facts. Review the names, images and EAN barcodes,
+then explicitly select a candidate; the chosen title, barcode and photo are
+saved with the inventory item when you click **Ausgewählte Artikel einbuchen**.
+An unchecked/unmatched line keeps its original Knuspr product name. Search is
+on demand and rate-limited (~one request per 6.5 seconds) to respect Open Food
+Facts API limits. Knuspr product IDs are **not** food barcodes, so the result
+is a proposed match, never automatically accepted. The inventory's physical
+storage location remains independently selectable.
+
+No HA LLM agent is used for these matches yet: a generic conversation agent
+cannot guarantee product identities or barcodes. This would require a separate
+opt-in feature with confidence review and explicit privacy/cost controls.
+
 ## Configuration
 
 All options live under **Settings → Devices & Services → Fridge Assistant → Configure**:

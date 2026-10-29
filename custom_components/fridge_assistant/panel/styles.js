@@ -549,6 +549,23 @@ ha-icon{--mdc-icon-size:18px;vertical-align:-4px;}
 .kn-controls{display:flex;flex-wrap:wrap;gap:8px}
 .kn-auto-option{display:flex;gap:8px;align-items:flex-start;margin:12px 0;font-size:13px}
 .kn-auto-option input{flex:none;margin-top:3px}
+/* Knuspr dialogue follows the same typography and spacing as other panel dialogs. */
+.kn-controls .btn{font:inherit;font-size:13px;line-height:1.3}
+.kn-auth-box[hidden]{display:none!important}
+.kn-auth-box,.kn-auth-box button,.kn-auth-box input{font-family:inherit}
+.kn-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(128px,180px);column-gap:12px;row-gap:8px;align-items:center;font-size:13px;line-height:1.45}
+.kn-row label{display:flex;align-items:center;min-width:0;gap:8px;font-size:13px;line-height:1.45}
+.kn-row label span{font-size:13px;line-height:1.45;font-weight:500}
+.kn-row select{min-width:0;width:100%;font:inherit;font-size:13px}
+.kn-row .kn-off-search{grid-column:1/-1;justify-self:start;font-size:12px;padding:6px 10px}
+.kn-off-candidates{grid-column:1/-1;display:flex;flex-direction:column;gap:6px}
+.kn-off-candidates:empty{display:none}
+.kn-off-candidate{display:flex;gap:10px;text-align:left;align-items:center;width:100%;padding:7px 9px;border:1px solid var(--fa-line);border-radius:10px;background:var(--fa-card);color:var(--fa-text);font:inherit;font-size:12px;cursor:pointer}
+.kn-off-candidate:hover{border-color:var(--fa-accent)}
+.kn-off-candidate img{width:42px;height:42px;object-fit:contain;border-radius:6px;background:#fff;flex:none}
+.kn-auto-option{font:inherit;font-size:12px;line-height:1.4}
+#kn-order{width:100%;font:inherit;font-size:13px}
+@media(max-width:480px){.kn-row{grid-template-columns:minmax(0,1fr) minmax(112px,145px)}}
 /* --------------------------------------------------------------- desktop */
 @media (min-width:640px){
   .brand h1{font-size:25px;}

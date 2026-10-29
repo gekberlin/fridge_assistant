@@ -582,3 +582,7 @@ ha-icon{--mdc-icon-size:18px;vertical-align:-4px;}
   .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 }
 `;
+
+/* Product images in item details and editor, matching inventory cards. */
+.d-emoji:has(.detail-product-photo),.m-emoji:has(.detail-product-photo){overflow:hidden;display:flex;align-items:center;justify-content:center}
+.detail-product-photo{width:100%;height:100%;object-fit:contain;display:block}

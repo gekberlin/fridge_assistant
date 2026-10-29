@@ -871,12 +871,15 @@ async def ws_knuspr_off_search(hass, connection, msg):
     if row is None:
         connection.send_error(msg["id"], "not_found", "Order position not found")
         return
-    from .openfoodfacts import search_products
+    from .openfoodfacts import search_products, OpenFoodFactsError
     try:
         candidates = await search_products(hass, row["name"])
+    except OpenFoodFactsError as err:
+        connection.send_error(msg["id"], "off_unavailable", str(err))
+        return
     except Exception as err:
-        _LOGGER.warning("Open Food Facts lookup failed: %s", type(err).__name__)
-        connection.send_error(msg["id"], "off_unavailable", "Open Food Facts lookup failed")
+        _LOGGER.exception("Unexpected Open Food Facts lookup failure")
+        connection.send_error(msg["id"], "off_unavailable", "Open Food Facts: " + type(err).__name__)
         return
     connection.send_result(msg["id"], {"candidates": candidates})
 

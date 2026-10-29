@@ -471,7 +471,7 @@ class FridgeAssistantPanel extends HTMLElement {
       : "";
     const selected = this._inspectorItemId === i.id ? " selected" : "";
     return `<div class="card${selected}" data-item="${i.id}" role="button" tabindex="0" aria-label="${esc(i.name)}">
-      <div class="card-emoji">${i.emoji || "🍽️"}</div>
+      <div class="card-emoji">${i.photo && /^https:\/\//i.test(i.photo) ? `<img class="card-product-photo" src="${esc(i.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : (i.emoji || "🍽️")}</div>
       <div class="card-main">
         <div class="card-title">${esc(i.name)}</div>
         <div class="card-sub">

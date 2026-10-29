@@ -115,7 +115,7 @@ export function openKnuspr(panel) {
       const done = imported.has(row.source_key);
       return `<div class="kn-row" data-key="${esc(row.source_key)}">
         <label><input type="checkbox" class="kn-select" ${done ? "disabled" : "checked"}>
-        <span class="kn-photo-frame" title="${row.photo ? "Knuspr-Produktfoto" : "Noch kein Knuspr-Foto gefunden"}">
+        <span class="kn-photo-frame" title="${row.photo ? (row.photo_source === "openfoodfacts" ? "Bildvorschlag von Open Food Facts" : "Knuspr-Produktfoto") : "Noch kein Produktfoto gefunden"}">
           ${row.photo ? `<img class="kn-product-photo" src="${esc(row.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<span class="kn-photo-placeholder" aria-label="Kein Produktfoto">📷</span>`}
         </span>
         <span class="kn-product-title">${esc(row.name)} · ${esc(String(row.quantity || 1))} ${done ? "✓ " + texts.done : ""}</span></label>

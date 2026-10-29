@@ -22,6 +22,16 @@ REDIRECT = "http://localhost:8765/callback"
 STORAGE_KEY = "fridge_assistant.knuspr_auth"
 
 
+def _error_types(err: BaseException) -> str:
+    """Report exception class names only, never OAuth URLs or secrets."""
+    if isinstance(err, BaseExceptionGroup):
+        names = []
+        for inner in err.exceptions:
+            names.extend(_error_types(inner).split(", "))
+        return ", ".join(dict.fromkeys(names))[:180]
+    return type(err).__name__
+
+
 class KnusprSDKError(Exception):
     """Non-sensitive error for the frontend."""
 
@@ -177,9 +187,9 @@ class KnusprBridge:
             self._ready = False
             raise
         except Exception as err:
-            self._error = type(err).__name__
+            self._error = _error_types(err)
             self._ready = False
-            raise KnusprSDKError("Knuspr connection failed: " + type(err).__name__) from err
+            raise KnusprSDKError("Knuspr connection failed: " + self._error) from err
 
     async def fetch_orders(self):
         async with self._lock:

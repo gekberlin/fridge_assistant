@@ -846,8 +846,8 @@ async def ws_knuspr_discover(hass, connection, msg):
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_fetch"})
 @websocket_api.async_response
 async def ws_knuspr_fetch(hass, connection, msg):
-    """Fetch orders only after a user clicks, via HA-RohlikCZ."""
-    from .knuspr_rohlik import fetch_orders, KnusprOrderError
+    """Fetch exactly three delivered orders on an explicit user request."""
+    from .knuspr_sdk import get_bridge, KnusprSDKError
     if not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Administrator required")
         return
@@ -855,13 +855,62 @@ async def ws_knuspr_fetch(hass, connection, msg):
     if runtime is None:
         return
     try:
-        orders = await fetch_orders(hass)
+        orders = await get_bridge(hass).fetch_orders()
         staged = runtime.store.stage_knuspr_orders(orders)
         await runtime.async_changed()
-    except KnusprOrderError as err:
+    except KnusprSDKError as err:
         connection.send_error(msg["id"], "knuspr_error", str(err))
         return
     connection.send_result(msg["id"], {"orders_staged": len(staged)})
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_auth_status"})
+@websocket_api.async_response
+async def ws_knuspr_auth_status(hass, connection, msg):
+    from .knuspr_sdk import get_bridge
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
+    connection.send_result(msg["id"], get_bridge(hass).status())
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_auth_start"})
+@websocket_api.async_response
+async def ws_knuspr_auth_start(hass, connection, msg):
+    from .knuspr_sdk import get_bridge
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
+    connection.send_result(msg["id"], await get_bridge(hass).start_login())
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/knuspr_auth_callback",
+    vol.Required("callback_url"): cv.string,
+})
+@websocket_api.async_response
+async def ws_knuspr_auth_callback(hass, connection, msg):
+    from .knuspr_sdk import get_bridge, KnusprSDKError
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
+    try:
+        result = await get_bridge(hass).submit_callback(msg["callback_url"])
+    except KnusprSDKError as err:
+        connection.send_error(msg["id"], "auth_error", str(err))
+        return
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_auth_logout"})
+@websocket_api.async_response
+async def ws_knuspr_auth_logout(hass, connection, msg):
+    from .knuspr_sdk import get_bridge
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
+    await get_bridge(hass).logout()
+    connection.send_result(msg["id"], {"disconnected": True})
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_login"})

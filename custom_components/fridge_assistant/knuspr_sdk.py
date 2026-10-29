@@ -232,8 +232,11 @@ class KnusprBridge:
                         # ID so similar names are never mixed up.
                         if len(photos) < len(product_ids):
                             self._phase = "catalog_images"
-                            available = await session.list_tools()
-                            image_diagnostics["catalog_available"] = any(tool.name == "display_products" for tool in available.tools)
+                            try:
+                                available = await session.list_tools()
+                                image_diagnostics["catalog_available"] = any(tool.name == "display_products" for tool in available.tools)
+                            except Exception as err:
+                                _LOGGER.warning("Knuspr MCP tool discovery failed: %s", type(err).__name__)
                             if not image_diagnostics["catalog_available"]:
                                 _LOGGER.warning("Knuspr MCP does not expose display_products for external clients; catalog images unavailable")
                             names = {}

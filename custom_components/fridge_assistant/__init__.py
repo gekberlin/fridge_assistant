@@ -29,6 +29,8 @@ from .const import (
 from .coordinator import FridgeRuntime
 from .services import async_setup_services, async_unload_services
 from .knuspr_oauth import KnusprOAuthCallback
+# Import MCP SDK during integration loading (HA import executor), not on a WebSocket event.
+from .knuspr_sdk import get_bridge
 from .store import FridgeStore
 from .websocket_api import async_register_websocket
 

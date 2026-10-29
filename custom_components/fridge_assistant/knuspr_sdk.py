@@ -225,6 +225,45 @@ class KnusprBridge:
                                     "Knuspr product photos unavailable: %s",
                                     type(err).__name__,
                                 )
+                        # Real Knuspr get_product_details responses often contain
+                        # prices/stock but NO image. The catalog display_products
+                        # MCP tool provides image URLs. Match strictly by product
+                        # ID so similar names are never mixed up.
+                        if len(photos) < len(product_ids):
+                            self._phase = "catalog_images"
+                            names = {}
+                            for order in orders:
+                                for item in order.get("items", []):
+                                    if isinstance(item, dict) and str(item.get("id", "")).isdigit():
+                                        names.setdefault(str(item["id"]), str(item.get("name") or ""))
+                            # Bound extra API work on large order histories.
+                            for pid, name in list(names.items())[:60]:
+                                if pid in photos or not name:
+                                    continue
+                                try:
+                                    result = await asyncio.wait_for(
+                                        session.call_tool("display_products", {"keyword": name}),
+                                        timeout=12,
+                                    )
+                                    if getattr(result, "isError", False):
+                                        continue
+                                    data = parse_mcp_result(result)
+                                    if isinstance(data, dict) and "result" in data:
+                                        data = data["result"]
+                                    candidates = data.get("products", []) if isinstance(data, dict) else []
+                                    for product in candidates:
+                                        if str(product.get("productId")) == pid:
+                                            url = product.get("image")
+                                            from .knuspr_product_photos import _valid_url
+                                            if _valid_url(url):
+                                                photos[pid] = url
+                                            break
+                                except Exception as err:
+                                    _LOGGER.debug("Knuspr catalog photo lookup skipped: %s", type(err).__name__)
+                        _LOGGER.info(
+                            "Knuspr product image enrichment: %d/%d matched",
+                            len(photos), len(product_ids)
+                        )
                         for order in orders:
                             for item in order.get("items", []):
                                 if isinstance(item, dict):

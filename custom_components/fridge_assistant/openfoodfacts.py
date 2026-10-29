@@ -6,6 +6,9 @@ automatically assigns a match or modifies inventory.
 from __future__ import annotations
 
 import asyncio
+import logging
+
+from aiohttp import ClientError, ClientResponseError
 import re
 import time
 from difflib import SequenceMatcher
@@ -14,7 +17,12 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl"
 FIELDS = "code,product_name,product_name_de,brands,image_front_small_url,image_front_url,image_url,quantity"
-UA = "FridgeAssistant/0.8.7 (https://github.com/gekberlin/fridge_assistant)"
+UA = "FridgeAssistant/0.8.9 (https://github.com/gekberlin/fridge_assistant/issues)"
+_LOGGER = logging.getLogger(__name__)
+
+
+class OpenFoodFactsError(Exception):
+    """Safe-to-display lookup error, excluding URLs and query text."""
 _MIN_INTERVAL = 6.5
 _last_request = 0.0
 _lock = asyncio.Lock()
@@ -36,14 +44,24 @@ async def search_products(hass, name):
             await asyncio.sleep(delay)
         _last_request = time.monotonic()
         session = async_get_clientsession(hass)
-        async with session.get(
-            SEARCH_URL,
+        try:
+            async with session.get(
+                SEARCH_URL,
             params={"search_terms": query, "search_simple": "1", "action": "process",
                     "json": "1", "page_size": "8", "fields": FIELDS},
-            headers={"User-Agent": UA}, timeout=20,
-        ) as response:
-            response.raise_for_status()
-            payload = await response.json(content_type=None)
+                headers={"User-Agent": UA, "Accept": "application/json"}, timeout=30,
+            ) as response:
+                response.raise_for_status()
+                payload = await response.json(content_type=None)
+        except ClientResponseError as err:
+            _LOGGER.warning("Open Food Facts HTTP %s", err.status)
+            raise OpenFoodFactsError(f"Open Food Facts HTTP {err.status}") from err
+        except asyncio.TimeoutError as err:
+            _LOGGER.warning("Open Food Facts search timed out")
+            raise OpenFoodFactsError("Zeitüberschreitung bei Open Food Facts") from err
+        except (ClientError, ValueError) as err:
+            _LOGGER.warning("Open Food Facts failed: %s", type(err).__name__)
+            raise OpenFoodFactsError("Verbindungs-/Antwortfehler: " + type(err).__name__) from err
     results = []
     target = _clean(name)
     for product in payload.get("products", []):

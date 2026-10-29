@@ -112,7 +112,7 @@ class KnusprBridge:
         self._url = None
         self._error = None
         self._ready = False
-        self._task = self.hass.async_create_background_task(self._login_worker(), "knuspr_oauth_login")
+        self._task = self.hass.async_create_task(self._login_worker(), "knuspr_oauth_login")
         return self.status()
 
     async def _login_worker(self):

@@ -844,7 +844,7 @@ async def ws_knuspr_import_rows(hass, connection, msg):
         item = await runtime.async_add_item({
             "name": chosen.get("name") or row["name"],
             "barcode": chosen.get("barcode") or None,
-            "photo": photo or None,
+            "photo": photo or row.get("photo") or None,
             "location": locations[key],
             "quantity": quantities.get(key, str(row.get("quantity") or 1)) + (" " + str(row["unit"]) if row.get("unit") else ""),
             "notes": f"Knuspr order {order['id']} / position {key}",
@@ -933,6 +933,7 @@ async def ws_knuspr_fetch(hass, connection, msg):
                         continue
                     await runtime.async_add_item({
                         "name": row["name"],
+                        "photo": row.get("photo") or None,
                         "location": candidates[0],
                         "quantity": str(row.get("quantity") or 1),
                         "notes": "Knuspr import " + order["id"],

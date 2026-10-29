@@ -142,7 +142,9 @@ class KnusprBridge:
     async def _connect(self, login_only=False):
         try:
             provider = self._provider()
-            http_client = create_mcp_http_client(auth=provider)
+            http_client = await self.hass.async_add_executor_job(
+                lambda: create_mcp_http_client(auth=provider)
+            )
             async with http_client:
                 async with streamable_http_client(SERVER, http_client=http_client) as (read, write):
                     async with ClientSession(read, write) as session:

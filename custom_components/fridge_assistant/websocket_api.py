@@ -794,6 +794,21 @@ async def ws_manage_location(hass, connection, msg) -> None:
     await runtime.async_changed()
     connection.send_result(msg["id"], {"locations": runtime.store.locations})
 
+def _knuspr_order_note(order: dict) -> str:
+    """Use the order date in notes; avoid opaque order/position identifiers."""
+    raw = str(order.get("order_time") or "").strip()
+    if raw:
+        # Standard ISO timestamps; Knuspr currently supplies orderTime.
+        try:
+            from datetime import datetime
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            return "Knuspr-Bestellung vom " + parsed.strftime("%d.%m.%Y")
+        except ValueError:
+            if len(raw) >= 10 and raw[4] == "-" and raw[7] == "-":
+                return "Knuspr-Bestellung vom " + raw[8:10] + "." + raw[5:7] + "." + raw[:4]
+    return "Knuspr-Bestellung"
+
+
 @websocket_api.websocket_command({
     vol.Required("type"): f"{DOMAIN}/knuspr_import_rows",
     vol.Required("order_id"): cv.string,
@@ -847,7 +862,7 @@ async def ws_knuspr_import_rows(hass, connection, msg):
             "photo": photo or row.get("photo") or None,
             "location": locations[key],
             "quantity": quantities.get(key, str(row.get("quantity") or 1)) + (" " + str(row["unit"]) if row.get("unit") else ""),
-            "notes": f"Knuspr order {order['id']} / position {key}",
+            "notes": _knuspr_order_note(order),
         }, by=by, by_name=by_name)
         runtime.store.knuspr_imported.add(key)
         imported.append(item["id"])
@@ -936,7 +951,7 @@ async def ws_knuspr_fetch(hass, connection, msg):
                         "photo": row.get("photo") or None,
                         "location": candidates[0],
                         "quantity": str(row.get("quantity") or 1),
-                        "notes": "Knuspr import " + order["id"],
+                        "notes": _knuspr_order_note(order),
                     }, by=by, by_name=by_name)
                     runtime.store.knuspr_imported.add(key)
                     imported += 1

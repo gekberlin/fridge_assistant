@@ -70,7 +70,7 @@ export function openInspector(panel, item, { highlight = null } = {}) {
 
     h.modal.innerHTML = `
       <div class="detail-head" style="--c:${col}">
-        <div class="d-emoji">${i.emoji || "🍽️"}</div>
+        <div class="d-emoji">${i.photo && /^https:\/\//i.test(i.photo) ? `<img class="detail-product-photo" src="${esc(i.photo)}" alt="" referrerpolicy="no-referrer">` : (i.emoji || "🍽️")}</div>
         <div class="d-title"><h2>${esc(i.name)}</h2><div class="d-code">${esc(i.code)}${total > 1 ? ` · <span class="pbadge" title="${esc(panel.t("pbadgeTitle", open, total))}">${open}/${total}</span>` : ""}</div></div>
         <button class="icon-btn" id="d-close" aria-label="${panel.t("closeBtn")}"><ha-icon icon="mdi:close"></ha-icon></button>
       </div>

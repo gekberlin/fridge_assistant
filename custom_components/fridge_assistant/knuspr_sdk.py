@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 from urllib.parse import parse_qs, urlparse
 
 from homeassistant.helpers.storage import Store
@@ -113,8 +112,16 @@ class KnusprBridge:
         self._url = None
         self._error = None
         self._ready = False
-        self._task = self.hass.async_create_task(self._connect(True), "knuspr_oauth_login")
+        self._task = self.hass.async_create_background_task(self._login_worker(), "knuspr_oauth_login")
         return self.status()
+
+    async def _login_worker(self):
+        try:
+            await self._connect(True)
+        except KnusprSDKError:
+            # _connect records a safe-to-display error; don't leave an
+            # unhandled task exception in the event loop.
+            pass
 
     async def submit_callback(self, url):
         future = self._callback_future
@@ -167,7 +174,9 @@ class KnusprBridge:
                         if not isinstance(orders, list):
                             raise KnusprSDKError("Unexpected Knuspr order response")
                         return orders[:3]
-        except KnusprSDKError:
+        except KnusprSDKError as err:
+            self._error = str(err)
+            self._ready = False
             raise
         except Exception as err:
             self._error = type(err).__name__

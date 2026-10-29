@@ -135,10 +135,13 @@ async def fetch_direct_catalog_photos(hass, product_ids):
                 payload = await response.json(content_type=None)
             # Payload shape may change across country/store deployments.
             entries = payload
-            if isinstance(entries, dict):
-                for wrapper in ("data", "products", "items", "result", "cards"):
-                    if wrapper in entries:
-                        entries = entries[wrapper]
+            for _ in range(4):
+                if not isinstance(entries, dict):
+                    break
+                wrapper = next((k for k in ("data", "products", "items", "result", "cards") if k in entries), None)
+                if wrapper is None:
+                    break
+                entries = entries[wrapper]
             if isinstance(entries, dict):
                 entries = list(entries.values())
             if not isinstance(entries, list):
@@ -153,10 +156,10 @@ async def fetch_direct_catalog_photos(hass, product_ids):
                 raw = (item.get("imgPath") or item.get("imageUrl") or
                        item.get("image") or item.get("images"))
                 url = _photo(raw)
-                if not url and isinstance(raw, str) and raw.startswith("/images/"):
+                if not url and isinstance(raw, str) and raw.lstrip("/").startswith("images/"):
                     # The product-card API sometimes returns a CDN-relative
                     # image path. Prefix only paths supplied by that API.
-                    url = _valid_url("https://cdn.knuspr.de" + raw)
+                    url = _valid_url("https://cdn.knuspr.de/" + raw.lstrip("/"))
                 if url:
                     found[str(pid)] = url
         except Exception as err:

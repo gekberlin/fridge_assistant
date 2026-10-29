@@ -23,7 +23,7 @@ export function openAddModal(panel, prefill = {}, editItem = null) {
 
   const h = panel._openModal(`
     <div class="modal-head">
-      <div class="m-emoji" id="m-emoji">${esc(m.emoji)}</div>
+      <div class="m-emoji" id="m-emoji">${(editItem?.photo || prefill.photo) && String(editItem?.photo || prefill.photo).startsWith("https://") ? `<img class="card-product-photo" src="${esc(editItem?.photo || prefill.photo)}" alt="" referrerpolicy="no-referrer">` : esc(m.emoji)}</div>
       <div class="m-title">
         <input class="m-name" id="f-name" placeholder="${panel.t("addNamePlaceholder")}" value="${esc(nameVal)}">
       </div>
@@ -72,7 +72,7 @@ export function openAddModal(panel, prefill = {}, editItem = null) {
   const emojiEl = q("#m-emoji"), suggestEl = q("#f-suggest"), hintEl = q("#f-hint");
   const lang = panel._lang();
 
-  const setEmoji = (e) => { m.emoji = e; emojiEl.textContent = e; if (q("#f-emojiin")) q("#f-emojiin").value = e; };
+  const setEmoji = (e) => { m.emoji = e; if (!emojiEl.querySelector("img")) emojiEl.textContent = e; if (q("#f-emojiin")) q("#f-emojiin").value = e; };
   const setKind = (k) => {
     if (!k) return;
     m.kind = k;

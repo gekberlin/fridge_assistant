@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import traceback
 from urllib.parse import parse_qs, urlparse
 
 from homeassistant.helpers.storage import Store
@@ -20,6 +22,7 @@ from mcp.shared.auth import (
 SERVER = "https://mcp.knuspr.de/mcp"
 REDIRECT = "http://localhost:8765/callback"
 STORAGE_KEY = "fridge_assistant.knuspr_auth"
+_LOGGER = logging.getLogger(__name__)
 
 
 def _error_types(err: BaseException) -> str:
@@ -78,6 +81,7 @@ class KnusprBridge:
         self._callback_future = None
         self._error = None
         self._ready = False
+        self._phase = "idle"
         self._lock = asyncio.Lock()
 
     def status(self):
@@ -86,6 +90,7 @@ class KnusprBridge:
             "awaiting_callback": bool(self._callback_future and not self._callback_future.done()),
             "ready": self._ready,
             "error": self._error,
+            "phase": self._phase,
             "running": bool(self._task and not self._task.done()),
         }
 
@@ -122,6 +127,7 @@ class KnusprBridge:
         self._url = None
         self._error = None
         self._ready = False
+        self._phase = "starting"
         self._task = self.hass.async_create_task(self._login_worker(), "knuspr_oauth_login")
         return self.status()
 
@@ -151,18 +157,24 @@ class KnusprBridge:
 
     async def _connect(self, login_only=False):
         try:
+            self._phase = "oauth_provider"
             provider = self._provider()
+            self._phase = "http_client"
             http_client = await self.hass.async_add_executor_job(
                 lambda: create_mcp_http_client(auth=provider)
             )
+            self._phase = "connect"
             async with http_client:
                 async with streamable_http_client(SERVER, http_client=http_client) as (read, write):
                     async with ClientSession(read, write) as session:
+                        self._phase = "initialize"
                         await asyncio.wait_for(session.initialize(), timeout=660)
                         self._ready = True
+                        self._phase = "connected"
                         self._error = None
                         if login_only:
                             return None
+                        self._phase = "fetch_orders"
                         result = await session.call_tool(
                             "fetch_orders", {"limit": 3, "order_type": "delivered"}
                         )
@@ -187,8 +199,29 @@ class KnusprBridge:
             self._ready = False
             raise
         except Exception as err:
-            self._error = _error_types(err)
+            # The exception message may contain authorization codes or URLs.
+            # Record only the failing phase and source locations, never values.
+            failures = []
+            def collect(exc):
+                if isinstance(exc, BaseExceptionGroup):
+                    for child in exc.exceptions:
+                        collect(child)
+                else:
+                    trace = traceback.extract_tb(exc.__traceback__)
+                    if trace:
+                        frame = trace[-1]
+                        failures.append(
+                            type(exc).__name__ + " at " +
+                            frame.filename.rsplit("/", 1)[-1] + ":" +
+                            str(frame.lineno) + " (" + frame.name + ")"
+                        )
+                    else:
+                        failures.append(type(exc).__name__)
+            collect(err)
+            self._error = self._phase + ": " + "; ".join(failures)[:220]
             self._ready = False
+            _LOGGER.error("Knuspr connection failed at phase %s: %s",
+                          self._phase, "; ".join(failures)[:220])
             raise KnusprSDKError("Knuspr connection failed: " + self._error) from err
 
     async def fetch_orders(self):

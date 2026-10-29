@@ -944,7 +944,7 @@ async def ws_knuspr_fetch(hass, connection, msg):
     except KnusprSDKError as err:
         connection.send_error(msg["id"], "knuspr_error", str(err))
         return
-    connection.send_result(msg["id"], {"orders_staged": len(staged), "auto_imported": imported, "pending_review": pending})
+    connection.send_result(msg["id"], {"orders_staged": len(staged), "photo_count": sum(bool(item.get("photo")) for order in staged for item in order["items"]), "auto_imported": imported, "pending_review": pending})
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_auth_status"})

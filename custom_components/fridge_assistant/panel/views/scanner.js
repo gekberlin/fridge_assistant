@@ -103,13 +103,13 @@ export async function openScanner(panel) {
       <button class="icon-btn" id="sc-close" aria-label="${panel.t("closeBtn")}"><ha-icon icon="mdi:close"></ha-icon></button>
     </div>
     <div class="seg sc-mode" id="sc-mode">
-      <button type="button" data-mode="find" class="on">${panel.t("searchModeBtn")}</button>
+      <button type="button" data-mode="find">${panel.t("searchModeBtn")}</button>
       <button type="button" data-mode="eat">${panel.t("eatModeBtn")}</button>
-      <button type="button" data-mode="auto">Auto ±1</button>
+      <button type="button" data-mode="auto" class="on">Auto ±1</button>
       <button type="button" data-mode="in">Einbuchen +1</button>
       <button type="button" data-mode="out">Ausbuchen −1</button>
     </div>
-    <label class="field" id="sc-location-field" style="display:none">Lagerort
+    <label class="field" id="sc-location-field">Lagerort
       <select id="sc-location">${(panel._state.locations || []).map(id => `<option value="${esc(id)}">${esc(panel._locMeta(id).label || id)}</option>`).join("")}</select>
     </label>
     <div class="scanbox${canLive ? "" : " hidden"}" id="sc-box">
@@ -130,13 +130,17 @@ export async function openScanner(panel) {
     if (reader) { try { reader.reset(); } catch (e) { /* ignore */ } reader = null; }
     if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
   };
-  let mode = "find", lastCode = "", lastTs = 0;
+  let mode = "auto", lastCode = "", lastTs = 0;
+  let booking = false;
   const eatCount = { n: 0 };
   const locField = q("#sc-location-field");
   const scanBook = async (raw) => {
+    if (booking) return;
+    booking = true;
     const barcode = String(raw || "").trim();
     if (!/^\\d{8,14}$/.test(barcode)) {
       setStatus("Bitte eine gültige EAN/UPC scannen (8–14 Ziffern).");
+      booking = false;
       return;
     }
     setStatus("EAN " + barcode + " wird verarbeitet …");
@@ -175,8 +179,9 @@ export async function openScanner(panel) {
         add.type = "button"; add.className = "btn ghost";
         add.textContent = "Artikel manuell anlegen";
         add.addEventListener("click", () => {
+          const selectedLocation = q("#sc-location").value;
           stop(); h.close();
-          panel._openAddModal({ barcode, location: q("#sc-location").value });
+          panel._openAddModal({ barcode, location: selectedLocation });
         });
         status.appendChild(add);
         return;
@@ -188,7 +193,7 @@ export async function openScanner(panel) {
       panel._toast(msg, { type: res.action === "not_found" || res.action === "full" || res.action === "ambiguous" ? "bad" : undefined });
     } catch (err) {
       setStatus("Buchung fehlgeschlagen: " + (err.message || err));
-    }
+    } finally { booking = false; }
   };
 
   const setStatus = (t) => { const s = q("#sc-status"); if (s) s.textContent = t; };

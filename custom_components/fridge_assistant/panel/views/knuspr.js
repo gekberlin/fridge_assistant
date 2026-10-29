@@ -109,6 +109,7 @@ export function openKnuspr(panel) {
       const done = imported.has(row.source_key);
       return `<div class="kn-row" data-key="${esc(row.source_key)}">
         <label><input type="checkbox" class="kn-select" ${done ? "disabled" : "checked"}>
+        ${row.photo ? `<img class="kn-product-photo" src="${esc(row.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}
         <span class="kn-product-title">${esc(row.name)} · ${esc(String(row.quantity || 1))} ${done ? "✓ " + texts.done : ""}</span></label>
         <select class="kn-location" aria-label="${texts.choose}" ${done ? "disabled" : ""}>${options}</select>
         <label class="kn-quantity-label">Menge <input class="kn-quantity" type="text" maxlength="60" value="${esc(String(row.quantity ?? 1))}" ${done ? "disabled" : ""} aria-label="Menge für ${esc(row.name)}"></label>

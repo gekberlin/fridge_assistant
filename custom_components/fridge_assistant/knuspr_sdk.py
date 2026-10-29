@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 from homeassistant.helpers.storage import Store
 from mcp import ClientSession
-from mcp.client.auth import OAuthClientProvider, TokenStorage, AuthorizationCodeResult
+from mcp.client.auth import OAuthClientProvider, TokenStorage
 from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 from mcp.shared.auth import (
     OAuthClientInformationFull, OAuthClientMetadata, OAuthToken,
@@ -135,11 +135,7 @@ class KnusprBridge:
             raise KnusprSDKError("Knuspr authorization denied")
         if not query.get("code") or not query.get("state"):
             raise KnusprSDKError("Callback URL lacks code or state")
-        future.set_result(AuthorizationCodeResult(
-            code=query["code"][0],
-            state=query["state"][0],
-            iss=query.get("iss", [None])[0],
-        ))
+        future.set_result((query["code"][0], query["state"][0]))
         self._url = None
         return {"submitted": True}
 

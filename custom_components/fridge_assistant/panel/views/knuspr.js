@@ -9,7 +9,7 @@ export function openKnuspr(panel) {
   const texts = panel._lang() === "nl"
     ? {title:"Knuspr-bestellingen", empty:"Nog geen bestellingen geladen. Stel HA-RohlikCZ in voor Knuspr.de en klik op ophalen.", all:"Alles selecteren", import:"Geselecteerde artikelen toevoegen", done:"Al toegevoegd", choose:"Opslaglocatie", loading:"Overgenomen"}
     : {title:"Knuspr orders", empty:"Noch keine Bestellungen geladen. Verbinde zuerst deinen Knuspr-Account per Apple-Login, danach kannst du abrufen.", all:"Select all", import:"Import selected items", done:"Already imported", choose:"Storage location", loading:"Imported"};
-  const { modal, close } = openModal(panel, `<h2>${texts.title}</h2><div class="kn-controls"><button class="btn ghost" id="kn-auth-start" type="button">Mit Apple / Knuspr verbinden</button><button class="btn ghost" id="kn-auth-status" type="button">Loginstatus prüfen</button><button class="btn primary" id="kn-fetch" type="button">Letzte 3 Bestellungen abrufen</button></div><p id="kn-status" role="status"></p>
+  const { modal, close } = openModal(panel, `<h2>${texts.title}</h2><div class="kn-controls"><button class="btn ghost" id="kn-auth-start" type="button">Mit Apple / Knuspr verbinden</button><button class="btn ghost" id="kn-auth-status" type="button">Loginstatus prüfen</button><button class="btn primary" id="kn-fetch" type="button">Letzte 3 Bestellungen abrufen</button></div><label class="kn-auto-option"><input id="kn-auto" type="checkbox"> Eindeutig zuordenbare Artikel beim Abruf automatisch einbuchen</label><p id="kn-status" role="status"></p>
     ${!orders.length ? `<p>${texts.empty}</p>` : `
     <label class="field">Order <select id="kn-order">
       ${orders.map(o => `<option value="${esc(o.id)}">${esc(o.order_time || o.id)} · ${o.items.length} items</option>`).join("")}
@@ -70,8 +70,8 @@ export function openKnuspr(panel) {
     ev.currentTarget.disabled = true;
     status.textContent = "Knuspr wird abgefragt…";
     try {
-      const result = await panel._call("knuspr_fetch");
-      status.textContent = result.orders_staged + " Bestellungen abgerufen.";
+      const result = await panel._call("knuspr_fetch", {auto_import: modal.querySelector("#kn-auto").checked});
+      status.textContent = result.orders_staged + " Bestellungen abgerufen, " + (result.auto_imported || 0) + " eingebucht, " + (result.pending_review || 0) + " zur Prüfung.";
       close();
       // Updated state is delivered by the normal websocket subscription.
       await panel._call("get_state").then(state => { panel._state = state; });

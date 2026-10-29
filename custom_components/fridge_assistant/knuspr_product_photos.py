@@ -100,3 +100,69 @@ def extract_photo_map(payload):
         if product_id is not None and photo:
             result[str(product_id)] = photo
     return result
+
+
+async def fetch_direct_catalog_photos(hass, product_ids):
+    """Lookup image URLs from Knuspr's *unofficial* public product-card API.
+
+    See Rohlik API endpoint implementation: GET /api/v1/products/card,
+    repeated products=ID and categoryType=normal. No Knuspr account
+    credentials or MCP tokens are sent to this public endpoint.
+    """
+    import logging
+    from homeassistant.helpers.aiohttp_client import async_get_clientsession
+    logger = logging.getLogger(__name__)
+    found = {}
+    failures = 0
+    session = async_get_clientsession(hass)
+    ids = list(dict.fromkeys(str(x) for x in product_ids if str(x).isdigit()))[:120]
+    for start in range(0, len(ids), 15):
+        batch = ids[start:start + 15]
+        try:
+            params = [("products", pid) for pid in batch]
+            params.append(("categoryType", "normal"))
+            async with session.get(
+                "https://www.knuspr.de/api/v1/products/card",
+                params=params,
+                headers={"Accept": "application/json",
+                         "User-Agent": "FridgeAssistant/0.9.8"},
+                timeout=20,
+            ) as response:
+                if response.status != 200:
+                    failures += 1
+                    logger.warning("Knuspr product card API returned HTTP %s", response.status)
+                    continue
+                payload = await response.json(content_type=None)
+            # Payload shape may change across country/store deployments.
+            entries = payload
+            for _ in range(4):
+                if not isinstance(entries, dict):
+                    break
+                wrapper = next((k for k in ("data", "products", "items", "result", "cards") if k in entries), None)
+                if wrapper is None:
+                    break
+                entries = entries[wrapper]
+            if isinstance(entries, dict):
+                entries = list(entries.values())
+            if not isinstance(entries, list):
+                failures += 1
+                continue
+            for item in entries:
+                if not isinstance(item, dict):
+                    continue
+                pid = item.get("productId") or item.get("id")
+                if str(pid) not in batch:
+                    continue
+                raw = (item.get("imgPath") or item.get("imageUrl") or
+                       item.get("image") or item.get("images"))
+                url = _photo(raw)
+                if not url and isinstance(raw, str) and raw.lstrip("/").startswith("images/"):
+                    # The product-card API sometimes returns a CDN-relative
+                    # image path. Prefix only paths supplied by that API.
+                    url = _valid_url("https://cdn.knuspr.de/" + raw.lstrip("/"))
+                if url:
+                    found[str(pid)] = url
+        except Exception as err:
+            failures += 1
+            logger.warning("Knuspr product card API error: %s", type(err).__name__)
+    return found, failures

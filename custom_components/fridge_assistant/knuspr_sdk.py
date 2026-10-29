@@ -288,13 +288,14 @@ class KnusprBridge:
                         if len(photos) < len(product_ids):
                             from .knuspr_product_photos import fetch_direct_catalog_photos
                             self._phase = "direct_catalog_photos"
-                            direct, failures = await fetch_direct_catalog_photos(
+                            direct, failures, direct_stats = await fetch_direct_catalog_photos(
                                 self.hass, [pid for pid in product_ids if str(pid) not in photos]
                             )
                             photos.update(direct)
                             self._photo_diagnostics.update({
                                 "direct_matched": len(direct),
                                 "direct_errors": failures,
+                                "direct_stats": direct_stats,
                             })
                         for order in orders:
                             for item in order.get("items", []):

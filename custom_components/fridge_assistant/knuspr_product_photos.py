@@ -114,10 +114,12 @@ async def fetch_direct_catalog_photos(hass, product_ids):
     logger = logging.getLogger(__name__)
     found = {}
     failures = 0
+    stats = {"batches": 0, "http_200": 0, "cards": 0, "matched_ids": 0, "relative_images": 0, "response_type": "", "sample_fields": []}
     session = async_get_clientsession(hass)
     ids = list(dict.fromkeys(str(x) for x in product_ids if str(x).isdigit()))[:120]
     for start in range(0, len(ids), 15):
         batch = ids[start:start + 15]
+        stats["batches"] += 1
         try:
             params = [("products", pid) for pid in batch]
             params.append(("categoryType", "normal"))
@@ -132,6 +134,7 @@ async def fetch_direct_catalog_photos(hass, product_ids):
                     failures += 1
                     logger.warning("Knuspr product card API returned HTTP %s", response.status)
                     continue
+                stats["http_200"] += 1
                 payload = await response.json(content_type=None)
             # Payload shape may change across country/store deployments.
             entries = payload
@@ -145,24 +148,32 @@ async def fetch_direct_catalog_photos(hass, product_ids):
             if isinstance(entries, dict):
                 entries = list(entries.values())
             if not isinstance(entries, list):
+                stats["response_type"] = type(entries).__name__
+                stats["sample_fields"] = sorted(str(k) for k in entries.keys())[:12] if isinstance(entries, dict) else []
                 failures += 1
                 continue
+            stats["cards"] += len(entries)
+            if entries and isinstance(entries[0], dict):
+                stats["sample_fields"] = sorted(str(k) for k in entries[0].keys())[:15]
             for item in entries:
                 if not isinstance(item, dict):
                     continue
                 pid = item.get("productId") or item.get("id")
                 if str(pid) not in batch:
                     continue
+                stats["matched_ids"] += 1
                 raw = (item.get("imgPath") or item.get("imageUrl") or
                        item.get("image") or item.get("images"))
                 url = _photo(raw)
                 if not url and isinstance(raw, str) and raw.lstrip("/").startswith("images/"):
                     # The product-card API sometimes returns a CDN-relative
                     # image path. Prefix only paths supplied by that API.
+                    stats["relative_images"] += 1
                     url = _valid_url("https://cdn.knuspr.de/" + raw.lstrip("/"))
                 if url:
                     found[str(pid)] = url
         except Exception as err:
             failures += 1
             logger.warning("Knuspr product card API error: %s", type(err).__name__)
-    return found, failures
+    logger.warning("Knuspr direct catalog photo diagnostics: %s found=%d failures=%d", stats, len(found), failures)
+    return found, failures, stats

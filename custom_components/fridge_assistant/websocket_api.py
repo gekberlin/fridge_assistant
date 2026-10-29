@@ -799,6 +799,7 @@ async def ws_manage_location(hass, connection, msg) -> None:
     vol.Required("order_id"): cv.string,
     vol.Required("source_keys"): [cv.string],
     vol.Required("location_by_key"): {cv.string: cv.string},
+    vol.Optional("quantity_by_key", default={}): {cv.string: vol.All(cv.string, vol.Length(min=1, max=60))},
     vol.Optional("product_by_key", default={}): {cv.string: vol.Schema({
         vol.Required("name"): cv.string,
         vol.Required("barcode"): cv.string,
@@ -821,6 +822,7 @@ async def ws_knuspr_import_rows(hass, connection, msg):
         connection.send_error(msg["id"], "invalid_items", "Unknown order position")
         return
     locations = msg["location_by_key"]
+    quantities = msg.get("quantity_by_key", {})
     for key in requested:
         if key not in runtime.store.knuspr_imported and locations.get(key) not in runtime.store.locations:
             connection.send_error(msg["id"], "invalid_location", f"Choose a valid location for {key}")
@@ -844,7 +846,7 @@ async def ws_knuspr_import_rows(hass, connection, msg):
             "barcode": chosen.get("barcode") or None,
             "photo": photo or None,
             "location": locations[key],
-            "quantity": str(row.get("quantity") or 1) + (" " + str(row["unit"]) if row.get("unit") else ""),
+            "quantity": quantities.get(key, str(row.get("quantity") or 1)) + (" " + str(row["unit"]) if row.get("unit") else ""),
             "notes": f"Knuspr order {order['id']} / position {key}",
         }, by=by, by_name=by_name)
         runtime.store.knuspr_imported.add(key)

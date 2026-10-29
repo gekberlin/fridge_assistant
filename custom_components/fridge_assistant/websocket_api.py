@@ -847,7 +847,7 @@ async def ws_knuspr_discover(hass, connection, msg):
     connection.send_result(msg["id"], await discover(hass))
 
 
-@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_fetch"})
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_fetch", vol.Optional("auto_import", default=False): cv.boolean})
 @websocket_api.async_response
 async def ws_knuspr_fetch(hass, connection, msg):
     """Fetch exactly three delivered orders on an explicit user request."""
@@ -861,11 +861,39 @@ async def ws_knuspr_fetch(hass, connection, msg):
     try:
         orders = await get_bridge(hass).fetch_orders()
         staged = runtime.store.stage_knuspr_orders(orders)
+        imported = 0
+        pending = 0
+        if msg.get("auto_import"):
+            # Only uniquely known storage types with exactly one matching
+            # physical location may be auto-booked. Unknowns require review.
+            by, by_name = await runtime.async_user_attrs(connection.user.id)
+            for order in staged:
+                for row in order["items"]:
+                    key = row["source_key"]
+                    if key in runtime.store.knuspr_imported:
+                        continue
+                    hint = row.get("location")
+                    storage = runtime.store.locations.get(hint, {}).get("storage_type", hint)
+                    candidates = [
+                        k for k, v in runtime.store.locations.items()
+                        if v.get("storage_type") == storage
+                    ] if storage in ("fridge", "freezer", "pantry") else []
+                    if len(candidates) != 1:
+                        pending += 1
+                        continue
+                    await runtime.async_add_item({
+                        "name": row["name"],
+                        "location": candidates[0],
+                        "quantity": str(row.get("quantity") or 1),
+                        "notes": "Knuspr import " + order["id"],
+                    }, by=by, by_name=by_name)
+                    runtime.store.knuspr_imported.add(key)
+                    imported += 1
         await runtime.async_changed()
     except KnusprSDKError as err:
         connection.send_error(msg["id"], "knuspr_error", str(err))
         return
-    connection.send_result(msg["id"], {"orders_staged": len(staged)})
+    connection.send_result(msg["id"], {"orders_staged": len(staged), "auto_imported": imported, "pending_review": pending})
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_auth_status"})

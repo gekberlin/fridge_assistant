@@ -8,8 +8,8 @@ export function openKnuspr(panel) {
   const locations = panel._state.locations || [];
   const texts = panel._lang() === "nl"
     ? {title:"Knuspr-bestellingen", empty:"Nog geen bestellingen geladen. Stel HA-RohlikCZ in voor Knuspr.de en klik op ophalen.", all:"Alles selecteren", import:"Geselecteerde artikelen toevoegen", done:"Al toegevoegd", choose:"Opslaglocatie", loading:"Overgenomen"}
-    : {title:"Knuspr orders", empty:"Noch keine Bestellungen geladen. HA-RohlikCZ mit Shop Knuspr.de einrichten, dann oben auf Abrufen klicken.", all:"Select all", import:"Import selected items", done:"Already imported", choose:"Storage location", loading:"Imported"};
-  const { modal, close } = openModal(panel, `<h2>${texts.title}</h2><div class="kn-controls"><button class="btn primary" id="kn-fetch" type="button">Letzte 3 Bestellungen abrufen</button></div><p id="kn-status" role="status"></p>
+    : {title:"Knuspr orders", empty:"Noch keine Bestellungen geladen. Verbinde zuerst deinen Knuspr-Account per Apple-Login, danach kannst du abrufen.", all:"Select all", import:"Import selected items", done:"Already imported", choose:"Storage location", loading:"Imported"};
+  const { modal, close } = openModal(panel, `<h2>${texts.title}</h2><div class="kn-controls"><button class="btn ghost" id="kn-auth-start" type="button">Mit Apple / Knuspr verbinden</button><button class="btn ghost" id="kn-auth-status" type="button">Loginstatus prüfen</button><button class="btn primary" id="kn-fetch" type="button">Letzte 3 Bestellungen abrufen</button></div><p id="kn-status" role="status"></p>
     ${!orders.length ? `<p>${texts.empty}</p>` : `
     <label class="field">Order <select id="kn-order">
       ${orders.map(o => `<option value="${esc(o.id)}">${esc(o.order_time || o.id)} · ${o.items.length} items</option>`).join("")}
@@ -17,6 +17,55 @@ export function openKnuspr(panel) {
     <button class="btn ghost" id="kn-all" type="button">${texts.all}</button>
     <button class="btn primary" id="kn-import" type="button">${texts.import}</button>`}`);
   const status = modal.querySelector("#kn-status");
+  const authBox = document.createElement("div");
+  authBox.className = "kn-auth-box";
+  authBox.innerHTML = '<p id="kn-auth-message" role="status"></p><div id="kn-auth-link"></div><label>Weiterleitungs-URL nach Apple-Login<input id="kn-auth-callback" type="url" placeholder="http://localhost:8765/callback?code=…"></label><button id="kn-auth-submit" class="btn ghost" type="button">URL übermitteln</button>';
+  modal.querySelector(".kn-controls").after(authBox);
+  const authMessage = authBox.querySelector("#kn-auth-message");
+  const authLink = authBox.querySelector("#kn-auth-link");
+  const showStatus = async () => {
+    const result = await panel._call("knuspr_auth_status");
+    if (result.login_url) {
+      // Never render the authorization URL into HTML, where it could be interpreted.
+      authLink.replaceChildren();
+      const link = document.createElement("a");
+      link.href = result.login_url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Knuspr-Login im Browser öffnen";
+      authLink.appendChild(link);
+      authMessage.textContent = "Nach dem Login die komplette localhost-Weiterleitungs-URL kopieren.";
+    } else if (result.ready) {
+      authLink.replaceChildren();
+      authMessage.textContent = "Knuspr erfolgreich verbunden.";
+    } else if (result.running) {
+      authMessage.textContent = "Anmeldung läuft. Erneut Loginstatus prüfen.";
+    } else {
+      authMessage.textContent = result.error || "Noch nicht verbunden.";
+    }
+  };
+  modal.querySelector("#kn-auth-start").addEventListener("click", async ev => {
+    ev.currentTarget.disabled = true;
+    try {
+      await panel._call("knuspr_auth_start");
+      await showStatus();
+    } catch (err) {
+      authMessage.textContent = String(err.message || err);
+    } finally { ev.currentTarget.disabled = false; }
+  });
+  modal.querySelector("#kn-auth-status").addEventListener("click", async () => {
+    try { await showStatus(); } catch (err) { authMessage.textContent = String(err.message || err); }
+  });
+  authBox.querySelector("#kn-auth-submit").addEventListener("click", async ev => {
+    ev.currentTarget.disabled = true;
+    try {
+      const url = authBox.querySelector("#kn-auth-callback").value.trim();
+      await panel._call("knuspr_auth_callback", {callback_url: url});
+      authBox.querySelector("#kn-auth-callback").value = "";
+      authMessage.textContent = "Rückruf übermittelt. Loginstatus prüfen.";
+    } catch (err) { authMessage.textContent = String(err.message || err); }
+    finally { ev.currentTarget.disabled = false; }
+  });
   modal.querySelector("#kn-fetch").addEventListener("click", async ev => {
     ev.currentTarget.disabled = true;
     status.textContent = "Knuspr wird abgefragt…";

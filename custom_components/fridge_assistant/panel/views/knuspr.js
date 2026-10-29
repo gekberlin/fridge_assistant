@@ -111,6 +111,7 @@ export function openKnuspr(panel) {
         <label><input type="checkbox" class="kn-select" ${done ? "disabled" : "checked"}>
         <span class="kn-product-title">${esc(row.name)} · ${esc(String(row.quantity || 1))} ${done ? "✓ " + texts.done : ""}</span></label>
         <select class="kn-location" aria-label="${texts.choose}" ${done ? "disabled" : ""}>${options}</select>
+        <label class="kn-quantity-label">Menge <input class="kn-quantity" type="text" maxlength="60" value="${esc(String(row.quantity ?? 1))}" ${done ? "disabled" : ""} aria-label="Menge für ${esc(row.name)}"></label>
         <button type="button" class="btn ghost kn-off-search" ${done ? "disabled" : ""} title="Produkt bei Open Food Facts suchen">Produktdaten suchen</button>
         <div class="kn-off-candidates" aria-live="polite"></div></div>`;
     }).join("");
@@ -178,8 +179,12 @@ export function openKnuspr(panel) {
     try {
       const location_by_key = {};
       const product_by_key = {};
+      const quantity_by_key = {};
       for (const el of selected) {
         location_by_key[el.dataset.key] = el.querySelector(".kn-location").value;
+        const quantity = el.querySelector(".kn-quantity").value.trim();
+        if (!quantity || quantity.length > 60) throw new Error("Bitte eine gültige Menge eintragen.");
+        quantity_by_key[el.dataset.key] = quantity;
         if (matched.has(el.dataset.key)) {
           const candidate = matched.get(el.dataset.key);
           product_by_key[el.dataset.key] = {name: candidate.name, barcode: candidate.barcode, photo: candidate.photo || ""};
@@ -190,6 +195,7 @@ export function openKnuspr(panel) {
         source_keys: Object.keys(location_by_key),
         location_by_key,
         product_by_key,
+        quantity_by_key,
       });
       panel._toast(`${texts.loading}: ${result.imported_ids.length}`);
       close();

@@ -899,21 +899,31 @@ async def ws_knuspr_fetch(hass, connection, msg):
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_auth_status"})
 @websocket_api.async_response
 async def ws_knuspr_auth_status(hass, connection, msg):
-    from .knuspr_sdk import get_bridge
     if not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Administrator required")
         return
-    connection.send_result(msg["id"], get_bridge(hass).status())
+    try:
+        from .knuspr_sdk import get_bridge
+        connection.send_result(msg["id"], get_bridge(hass).status())
+    except Exception as err:
+        _LOGGER.exception("Knuspr OAuth status failed")
+        connection.send_error(msg["id"], "knuspr_status_error",
+                              "Knuspr OAuth status failed: " + type(err).__name__)
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/knuspr_auth_start"})
 @websocket_api.async_response
 async def ws_knuspr_auth_start(hass, connection, msg):
-    from .knuspr_sdk import get_bridge
     if not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Administrator required")
         return
-    connection.send_result(msg["id"], await get_bridge(hass).start_login())
+    try:
+        from .knuspr_sdk import get_bridge
+        connection.send_result(msg["id"], await get_bridge(hass).start_login())
+    except Exception as err:
+        _LOGGER.exception("Knuspr OAuth start failed")
+        connection.send_error(msg["id"], "knuspr_start_error",
+                              "Knuspr OAuth start failed: " + type(err).__name__)
 
 
 @websocket_api.websocket_command({
@@ -922,14 +932,17 @@ async def ws_knuspr_auth_start(hass, connection, msg):
 })
 @websocket_api.async_response
 async def ws_knuspr_auth_callback(hass, connection, msg):
-    from .knuspr_sdk import get_bridge, KnusprSDKError
     if not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Administrator required")
         return
     try:
+        from .knuspr_sdk import get_bridge
         result = await get_bridge(hass).submit_callback(msg["callback_url"])
-    except KnusprSDKError as err:
-        connection.send_error(msg["id"], "auth_error", str(err))
+    except Exception as err:
+        # Callback contains a one-time code; never log its content.
+        _LOGGER.error("Knuspr callback rejected: %s", type(err).__name__)
+        connection.send_error(msg["id"], "knuspr_callback_error",
+                              "Knuspr callback failed: " + type(err).__name__)
         return
     connection.send_result(msg["id"], result)
 

@@ -11,10 +11,10 @@ from urllib.parse import parse_qs, urlparse
 
 from homeassistant.helpers.storage import Store
 from mcp import ClientSession
-from mcp.client.auth import OAuthClientProvider, TokenStorage
+from mcp.client.auth import OAuthClientProvider, TokenStorage, AuthorizationCodeResult
 from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 from mcp.shared.auth import (
-    AuthorizationCodeResult, OAuthClientInformationFull, OAuthClientMetadata, OAuthToken,
+    OAuthClientInformationFull, OAuthClientMetadata, OAuthToken,
 )
 
 SERVER = "https://mcp.knuspr.de/mcp"

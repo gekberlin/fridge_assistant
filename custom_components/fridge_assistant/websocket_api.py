@@ -137,6 +137,8 @@ def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_delete_history_event)
     websocket_api.async_register_command(hass, ws_history)
     websocket_api.async_register_command(hass, ws_lookup_barcode)
+    websocket_api.async_register_command(hass, ws_scan_inventory)
+    websocket_api.async_register_command(hass, ws_link_barcode)
     websocket_api.async_register_command(hass, ws_print_sticker)
     websocket_api.async_register_command(hass, ws_render_label)
     websocket_api.async_register_command(hass, ws_get_printers)
@@ -489,6 +491,129 @@ async def ws_history(hass, connection, msg) -> None:
     page = runtime.store.history_page(msg.get("limit", 25), msg.get("offset", 0))
     page["events"] = [_history_event(e, pictures) for e in page["events"]]
     connection.send_result(msg["id"], page)
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/scan_inventory",
+    vol.Required("barcode"): cv.string,
+    vol.Required("location"): cv.string,
+    vol.Required("mode"): vol.In(("auto", "in", "out")),
+})
+@websocket_api.async_response
+async def ws_scan_inventory(hass, connection, msg):
+    """Book exactly one retail EAN unit, via the existing portions/history API.
+
+    Unknown EANs are never guessed to match a Knuspr item. They may be
+    resolved through existing historical EANs or Open Food Facts; otherwise
+    the user must explicitly associate the product.
+    """
+    from .products import normalize_barcode, async_lookup_barcode
+    runtime = _runtime_or_error(hass, connection, msg)
+    if runtime is None:
+        return
+    barcode = normalize_barcode(msg["barcode"])
+    location = msg["location"]
+    mode = msg["mode"]
+    if not barcode or len(barcode) not in (8, 12, 13, 14):
+        connection.send_error(msg["id"], "invalid_barcode", "EAN/UPC muss 8, 12, 13 oder 14 Ziffern haben")
+        return
+    if location not in runtime.store.locations:
+        connection.send_error(msg["id"], "invalid_location", "Lagerort ist unbekannt")
+        return
+    by, by_name = _user_attrs(connection)
+    matching = [item for item in runtime.store.items.values()
+                if item.get("barcode") == barcode and item.get("location") == location]
+    if len(matching) > 1:
+        connection.send_result(msg["id"], {
+            "action": "ambiguous", "message": "Mehrere Bestände mit dieser EAN gefunden; bitte manuell auswählen"
+        })
+        return
+    existing = matching[0] if matching else None
+    action = ("out" if existing else "in") if mode == "auto" else mode
+    if action == "out":
+        if not existing:
+            connection.send_result(msg["id"], {"action": "not_found", "message": "Kein Artikel zum Ausbuchen gefunden"})
+            return
+        result = await runtime.async_consume_portion(
+            existing["id"], action=ACTION_EATEN, by=by, by_name=by_name
+        )
+        if isinstance(result, str):
+            connection.send_error(msg["id"], result, "Ausbuchung nicht möglich")
+            return
+        connection.send_result(msg["id"], {
+            "action": "out", "name": existing["name"],
+            "remaining": result["remaining"], "completed": result["completed"]
+        })
+        return
+    if existing:
+        portions = existing.get("portions") or [{"n": 1, "status": "open"}]
+        if len(portions) >= MAX_PORTIONS:
+            connection.send_result(msg["id"], {
+                "action": "full", "message": "Maximale Einheitenzahl erreicht; neuen Bestandsartikel anlegen"
+            })
+            return
+        result = await runtime.async_set_portions(existing["id"], len(portions) + 1, by=by, by_name=by_name)
+        connection.send_result(msg["id"], {
+            "action": "in", "name": existing["name"],
+            "remaining": len([p for p in result["item"]["portions"] if p.get("status") == "open"])
+        })
+        return
+    # New item: known EAN from another location, then historical inventory,
+    # finally the public Open Food Facts lookup. Never infer an EAN from
+    # a Knuspr product ID or silently associate two different products.
+    known = next((item for item in runtime.store.items.values()
+                  if item.get("barcode") == barcode), None)
+    if known is None:
+        known = next((ev.get("item") for ev in reversed(runtime.store.history)
+                      if (ev.get("item") or {}).get("barcode") == barcode), None)
+    if known is None:
+        known = await async_lookup_barcode(hass, barcode)
+    if not known or not known.get("name"):
+        connection.send_result(msg["id"], {
+            "action": "needs_link",
+            "message": "EAN unbekannt – bitte mit vorhandenem Knuspr-Artikel verknüpfen oder Artikel manuell anlegen"
+        })
+        return
+    new_item = await runtime.async_add_item({
+        "name": known["name"], "barcode": barcode, "location": location,
+        "photo": known.get("photo"), "emoji": known.get("emoji"),
+        "category": known.get("category"), "kind": known.get("kind"),
+        "quantity": "1",
+    }, by=by, by_name=by_name)
+    connection.send_result(msg["id"], {
+        "action": "in", "name": new_item["name"], "remaining": 1, "created": True,
+    })
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/link_barcode",
+    vol.Required("barcode"): cv.string,
+    vol.Required("item_id"): cv.string,
+})
+@websocket_api.async_response
+async def ws_link_barcode(hass, connection, msg):
+    """Explicitly associate a scanned EAN with an existing Knuspr/import item."""
+    from .products import normalize_barcode
+    runtime = _runtime_or_error(hass, connection, msg)
+    if runtime is None:
+        return
+    barcode = normalize_barcode(msg["barcode"])
+    if len(barcode) not in (8, 12, 13, 14):
+        connection.send_error(msg["id"], "invalid_barcode", "Ungültige EAN")
+        return
+    item = runtime.store.items.get(msg["item_id"])
+    if item is None:
+        connection.send_error(msg["id"], "not_found", "Bestandsartikel nicht gefunden")
+        return
+    # One EAN must not silently point to different product names; locations
+    # may each hold the same product.
+    for other in runtime.store.items.values():
+        if other["id"] != item["id"] and other.get("barcode") == barcode and other.get("name") != item["name"]:
+            connection.send_error(msg["id"], "conflict", "EAN ist bereits einem anderen Produkt zugeordnet")
+            return
+    runtime.store.update_item(item["id"], {"barcode": barcode})
+    await runtime.async_changed()
+    connection.send_result(msg["id"], {"linked": True, "name": item["name"], "barcode": barcode})
 
 
 @websocket_api.websocket_command(

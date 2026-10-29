@@ -103,14 +103,21 @@ export async function openScanner(panel) {
       <button class="icon-btn" id="sc-close" aria-label="${panel.t("closeBtn")}"><ha-icon icon="mdi:close"></ha-icon></button>
     </div>
     <div class="seg sc-mode" id="sc-mode">
-      <button type="button" data-mode="find" class="on">${panel.t("searchModeBtn")}</button>
+      <button type="button" data-mode="find">${panel.t("searchModeBtn")}</button>
       <button type="button" data-mode="eat">${panel.t("eatModeBtn")}</button>
+      <button type="button" data-mode="auto" class="on">Auto ±1</button>
+      <button type="button" data-mode="in">Einbuchen +1</button>
+      <button type="button" data-mode="out">Ausbuchen −1</button>
     </div>
+    <label class="field" id="sc-location-field">Lagerort
+      <select id="sc-location">${(panel._state.locations || []).map(id => `<option value="${esc(id)}">${esc(panel._locMeta(id).label || id)}</option>`).join("")}</select>
+    </label>
     <div class="scanbox${canLive ? "" : " hidden"}" id="sc-box">
       <video id="sc-video" playsinline muted></video><div class="scan-frame"></div>
       <button class="icon-btn scan-torch hidden" id="sc-torch" title="${panel.t("torchTooltip")}"><ha-icon icon="mdi:flashlight"></ha-icon></button>
     </div>
     <div class="scan-status" id="sc-status"></div>
+    <div id="sc-manual-panel"></div>
     <div class="modal-actions">
       ${decodable ? `<label class="btn ghost filepick">${panel.t("photoBtn")}<input id="sc-file" type="file" accept="image/*" capture="environment"></label>` : ""}
       <button class="btn ghost" id="sc-manual">${panel.t("typeCodeBtn")}</button>
@@ -124,8 +131,72 @@ export async function openScanner(panel) {
     if (reader) { try { reader.reset(); } catch (e) { /* ignore */ } reader = null; }
     if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
   };
-  let mode = "find", lastCode = "", lastTs = 0;
+  let mode = "auto", lastCode = "", lastTs = 0;
+  let booking = false;
   const eatCount = { n: 0 };
+  const locField = q("#sc-location-field");
+  const scanBook = async (raw) => {
+    if (booking) return;
+    booking = true;
+    const barcode = String(raw || "").trim();
+    if (!/^[0-9]{8,14}$/.test(barcode)) {
+      setStatus("Bitte eine gültige EAN/UPC scannen (8–14 Ziffern).");
+      booking = false;
+      return;
+    }
+    setStatus("EAN " + barcode + " wird verarbeitet …");
+    try {
+      const res = await panel._call("scan_inventory", {
+        barcode, location: q("#sc-location").value, mode
+      });
+      if (res.action === "needs_link") {
+        const current = (panel._state.items || []).filter(i => i.location === q("#sc-location").value);
+        const status = q("#sc-status");
+        status.textContent = res.message;
+        if (current.length) {
+          const sel = document.createElement("select");
+          sel.setAttribute("aria-label", "Mit bestehendem Artikel verknüpfen");
+          const prompt = document.createElement("option");
+          prompt.value = ""; prompt.textContent = "Knuspr-Artikel auswählen …";
+          sel.appendChild(prompt);
+          for (const it of current) {
+            const opt = document.createElement("option");
+            opt.value = it.id; opt.textContent = it.name;
+            sel.appendChild(opt);
+          }
+          const link = document.createElement("button");
+          link.type = "button"; link.className = "btn primary";
+          link.textContent = "EAN zuordnen";
+          link.addEventListener("click", async () => {
+            if (!sel.value) return;
+            try {
+              const assigned = await panel._call("link_barcode", { barcode, item_id: sel.value });
+              setStatus(assigned.name + ": EAN gespeichert. Bitte erneut scannen.");
+            } catch (err) { setStatus("EAN-Zuordnung fehlgeschlagen: " + (err.message || err)); }
+          });
+          status.appendChild(sel); status.appendChild(link);
+        }
+        const add = document.createElement("button");
+        add.type = "button"; add.className = "btn ghost";
+        add.textContent = "Artikel manuell anlegen";
+        add.addEventListener("click", () => {
+          const selectedLocation = q("#sc-location").value;
+          stop(); h.close();
+          panel._openAddModal({ barcode, location: selectedLocation });
+        });
+        status.appendChild(add);
+        return;
+      }
+      const msg = res.name
+        ? res.name + " · " + (res.action === "in" ? "+1 eingebucht" : res.action === "out" ? "−1 ausgebucht" : res.action)
+        : (res.message || "Scan verarbeitet");
+      setStatus(msg);
+      panel._toast(msg, { type: res.action === "not_found" || res.action === "full" || res.action === "ambiguous" ? "bad" : undefined });
+    } catch (err) {
+      setStatus("Buchung fehlgeschlagen: " + (err.message || err));
+    } finally { booking = false; }
+  };
+
   const setStatus = (t) => { const s = q("#sc-status"); if (s) s.textContent = t; };
   // Debounced router: search opens the item; eat marks it eaten and keeps scanning.
   const handle = (raw) => {
@@ -133,22 +204,24 @@ export async function openScanner(panel) {
     if (raw === lastCode && now - lastTs < 2500) return;
     lastCode = raw; lastTs = now;
     if (mode === "eat") eatScanned(panel, raw, setStatus, eatCount);
+    else if (["auto", "in", "out"].includes(mode)) scanBook(raw);
     else { stop(); onScan(panel, raw, h); }
   };
   const modeEl = q("#sc-mode");
   modeEl.querySelectorAll("button").forEach((b) =>
     b.addEventListener("click", () => {
       mode = b.dataset.mode;
+      locField.style.display = ["auto", "in", "out"].includes(mode) ? "" : "none";
       modeEl.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
-      setStatus(mode === "eat" ? panel.t("eatModeStatus") : panel.t("aimAtBarcode"));
+      setStatus(["auto", "in", "out"].includes(mode) ? "EAN am gewählten Lagerort scannen" : mode === "eat" ? panel.t("eatModeStatus") : panel.t("aimAtBarcode"));
     }));
   q("#sc-close").addEventListener("click", () => { stop(); h.close(); });
 
   q("#sc-manual").addEventListener("click", () => {
     stop();
     const box = q("#sc-box"); if (box) box.classList.add("hidden");
-    q("#sc-status").innerHTML = `<div class="scan-manual"><input id="sc-code" placeholder="${panel.t("codeInputPlaceholder")}" autocomplete="off" autocapitalize="characters" enterkeyhint="search"><button class="btn primary" id="sc-go">${panel.t("searchBtn")}</button></div>`;
-    const go = () => { const v = (q("#sc-code").value || "").trim(); if (v) handle(v); };
+    q("#sc-manual-panel").innerHTML = `<div class="scan-manual"><input id="sc-code" placeholder="${panel.t("codeInputPlaceholder")}" autocomplete="off" autocapitalize="characters" enterkeyhint="search"><button class="btn primary" id="sc-go">${panel.t("searchBtn")}</button></div>`;
+    const go = () => { const v = (q("#sc-code").value || "").trim(); if (v) { handle(v); q("#sc-code").select(); } };
     q("#sc-go").addEventListener("click", go);
     q("#sc-code").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
     setTimeout(() => q("#sc-code") && q("#sc-code").focus(), 60);

@@ -242,21 +242,33 @@ Fridge Assistant isn't in the default HACS store, so add it as a custom reposito
 Copy `custom_components/fridge_assistant` into your Home Assistant `config/custom_components/`
 directory, restart Home Assistant, and follow steps 4–5 above.
 
-## Knuspr.de import (manual only)
+## Knuspr MCP with Apple login (experimental)
 
-This experimental feature reuses the separately installed
-[HA-RohlikCZ](https://github.com/dvejsada/HA-RohlikCZ) integration.
-Install and configure HA-RohlikCZ with **site Knuspr.de (de)** first.
-Fridge Assistant does not collect or store a second copy of the
-account credentials. The account is accessed through the active
-RohlikCZ coordinator only when an HA administrator explicitly presses
-**Fetch last 3 orders** in the Fridge Assistant Knuspr dialog.
+The integration uses the official Python MCP SDK and the Knuspr MCP server.
+The OAuth registration follows the working local-loopback flow
+(`http://localhost:8765/callback`) rather than an HTTPS callback rejected
+by Knuspr. No HA-RohlikCZ integration or separate Knuspr password is needed.
 
-The dialog lists three delivered orders, allows selecting individual
-items or all items, and assigns physical locations before booking.
-No scheduled fetching or automatic inventory updates are enabled.
-Knuspr's unofficial web API is subject to change; this adapter has not
-yet been tested in a real HA instance with a Knuspr account.
+From the Knuspr basket dialog:
+1. Click **Mit Apple / Knuspr verbinden**.
+2. Click **Loginstatus prüfen**, then open the displayed authorization URL.
+3. Sign in with Apple in your normal browser.
+4. Your browser may show an error for localhost:8765, **which is expected**.
+   Copy the **complete callback URL from the browser address bar** into the
+   Knuspr dialog and click **URL übermitteln**. Do not share this URL:
+   its authorization code is sensitive.
+5. Check login status. Click **Letzte 3 Bestellungen abrufen**.
+
+Orders are fetched only after pressing the fetch button. There is **no
+background polling**. You may manually select individual items, or opt into
+**automatically booking uniquely assignable items** on this one manual
+fetch. Unrecognized or ambiguous storage locations remain in review.
+Imported positions are tracked to avoid duplicates.
+
+OAuth access/refresh tokens and client registration data are stored in Home
+Assistant's local `.storage` area, not in the browser. Protect HA backups
+accordingly. The flow relies on third-party MCP SDK behavior and has not
+yet been tested end-to-end in HA.
 
 ## Configuration
 

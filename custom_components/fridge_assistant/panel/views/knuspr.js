@@ -8,8 +8,8 @@ export function openKnuspr(panel) {
   const locations = panel._state.locations || [];
   const matched = new Map();
   const texts = panel._lang() === "nl"
-    ? {title:"Knuspr-bestellingen", empty:"Nog geen bestellingen geladen. Stel HA-RohlikCZ in voor Knuspr.de en klik op ophalen.", all:"Alles selecteren", import:"Geselecteerde artikelen toevoegen", done:"Al toegevoegd", choose:"Opslaglocatie", loading:"Overgenomen"}
-    : {title:"Knuspr orders", empty:"Noch keine Bestellungen geladen. Verbinde zuerst deinen Knuspr-Account per Apple-Login, danach kannst du abrufen.", all:"Select all", import:"Import selected items", done:"Already imported", choose:"Storage location", loading:"Imported"};
+    ? {title:"Knuspr-bestellingen", empty:"Nog geen bestellingen geladen. Verbind eerst je Knuspr-account en haal de bestellingen op.", all:"Alles selecteren", import:"Geselecteerde artikelen toevoegen", done:"Al toegevoegd", choose:"Opslaglocatie", loading:"Overgenomen"}
+    : {title:"Knuspr orders", empty:"Noch keine Bestellungen geladen. Verbinde zuerst deinen Knuspr-Account per Apple-Login, danach kannst du abrufen.", all:"Alle auswählen", import:"Ausgewählte Artikel einbuchen", done:"Bereits eingebucht", choose:"Lagerort", loading:"Eingebucht"};
   const { modal, close } = openModal(panel, `<h2>${texts.title}</h2><div class="kn-controls"><button class="btn ghost" id="kn-auth-start" type="button">Mit Apple / Knuspr verbinden</button><button class="btn ghost" id="kn-auth-status" type="button">Loginstatus prüfen</button><button class="btn primary" id="kn-fetch" type="button">Letzte 3 Bestellungen abrufen</button></div><label class="kn-auto-option"><input id="kn-auto" type="checkbox"> Eindeutig zuordenbare Artikel beim Abruf automatisch einbuchen</label><p id="kn-status" role="status"></p>
     ${!orders.length ? `<p>${texts.empty}</p>` : `
     <label class="field">Order <select id="kn-order">
@@ -48,12 +48,23 @@ export function openKnuspr(panel) {
       authMessage.textContent = result.error || "Noch nicht verbunden.";
     }
   };
+  const checkLoginAfterStart = async () => {
+    for (let attempt = 0; attempt < 12; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const current = await panel._call("knuspr_auth_status");
+      if (current.login_url || current.error || current.ready || !current.running) {
+        await showStatus();
+        return;
+      }
+    }
+    await showStatus();
+  };
   modal.querySelector("#kn-auth-start").addEventListener("click", async ev => {
     ev.currentTarget.disabled = true;
     try {
       authBox.hidden = false;
       await panel._call("knuspr_auth_start");
-      await showStatus();
+      await checkLoginAfterStart();
     } catch (err) {
       authMessage.textContent = String(err.message || err);
     } finally { ev.currentTarget.disabled = false; }
@@ -67,7 +78,8 @@ export function openKnuspr(panel) {
       const url = authBox.querySelector("#kn-auth-callback").value.trim();
       await panel._call("knuspr_auth_callback", {callback_url: url});
       authBox.querySelector("#kn-auth-callback").value = "";
-      authMessage.textContent = "Rückruf übermittelt. Loginstatus prüfen.";
+      authMessage.textContent = "Rückruf übermittelt. Verbinde…";
+      await checkLoginAfterStart();
     } catch (err) { authMessage.textContent = String(err.message || err); }
     finally { ev.currentTarget.disabled = false; }
   });
@@ -95,7 +107,6 @@ export function openKnuspr(panel) {
     const order = orders.find(o => o.id === picker.value);
     list.innerHTML = order.items.map(row => {
       const done = imported.has(row.source_key);
-      const suggested = locations.includes(row.location) ? row.location : locations[0];
       return `<div class="kn-row" data-key="${esc(row.source_key)}">
         <label><input type="checkbox" class="kn-select" ${done ? "disabled" : "checked"}>
         <span class="kn-product-title">${esc(row.name)} · ${esc(String(row.quantity || 1))} ${done ? "✓ " + texts.done : ""}</span></label>

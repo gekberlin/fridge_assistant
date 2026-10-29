@@ -23,7 +23,7 @@ export function openAddModal(panel, prefill = {}, editItem = null) {
 
   const h = panel._openModal(`
     <div class="modal-head">
-      <div class="m-emoji" id="m-emoji">${esc(m.emoji)}</div>
+      <div class="m-emoji" id="m-emoji">${(editItem?.photo || prefill.photo) && /^https:\/\//i.test(editItem?.photo || prefill.photo) ? `<img class="detail-product-photo" src="${esc(editItem?.photo || prefill.photo)}" alt="" referrerpolicy="no-referrer">` : esc(m.emoji)}</div>
       <div class="m-title">
         <input class="m-name" id="f-name" placeholder="${panel.t("addNamePlaceholder")}" value="${esc(nameVal)}">
       </div>

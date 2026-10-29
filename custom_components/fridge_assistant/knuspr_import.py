@@ -57,6 +57,7 @@ def normalize_order(order: Mapping[str, Any]) -> list[dict[str, Any]]:
             "order_id": str(order_id),
             "product_id": str(sku) if sku is not None else None,
             "name": name,
+            "photo": product.get("photo") or product.get("imageUrl") or "",
             "quantity": quantity,
             "unit": product.get("unit") or product.get("textualAmount"),
             "location": suggest_location(name),

@@ -109,13 +109,20 @@ export function openKnuspr(panel) {
       const done = imported.has(row.source_key);
       return `<div class="kn-row" data-key="${esc(row.source_key)}">
         <label><input type="checkbox" class="kn-select" ${done ? "disabled" : "checked"}>
-        ${row.photo ? `<img class="kn-product-photo" src="${esc(row.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}
+        <span class="kn-photo-frame" title="${row.photo ? "Knuspr-Produktfoto" : "Noch kein Knuspr-Foto gefunden"}">
+          ${row.photo ? `<img class="kn-product-photo" src="${esc(row.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<span class="kn-photo-placeholder" aria-label="Kein Produktfoto">📷</span>`}
+        </span>
         <span class="kn-product-title">${esc(row.name)} · ${esc(String(row.quantity || 1))} ${done ? "✓ " + texts.done : ""}</span></label>
         <select class="kn-location" aria-label="${texts.choose}" ${done ? "disabled" : ""}>${options}</select>
         <label class="kn-quantity-label">Menge <input class="kn-quantity" type="text" maxlength="60" value="${esc(String(row.quantity ?? 1))}" ${done ? "disabled" : ""} aria-label="Menge für ${esc(row.name)}"></label>
         <button type="button" class="btn ghost kn-off-search" ${done ? "disabled" : ""} title="Produkt bei Open Food Facts suchen">Produktdaten suchen</button>
         <div class="kn-off-candidates" aria-live="polite"></div></div>`;
     }).join("");
+    list.querySelectorAll(".kn-product-photo").forEach(img => {
+      img.addEventListener("error", () => {
+        img.parentElement.innerHTML = '<span class="kn-photo-placeholder" title="Bild konnte nicht geladen werden">⚠️</span>';
+      });
+    });
     order.items.forEach((row, i) => {
       const sel = list.children[i]?.querySelector(".kn-location");
       if (sel) sel.value = locations.includes(row.location) ? row.location : locations[0];

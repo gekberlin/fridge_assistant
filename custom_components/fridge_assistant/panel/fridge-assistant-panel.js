@@ -10,18 +10,18 @@
  * `t()` below. Only nl/en exist; there is no third language.
  */
 
-import { CATEGORY_LABELS, KIND_LABELS, LOCATION_LABELS, STATUS_COLOR, STRINGS } from "./strings.js?v=0.9.7";
-import { STYLES } from "./styles.js?v=0.9.7";
-import { daysLabel, esc, fmtDate } from "./lib/format.js?v=0.9.7";
-import { openModal, toast, wireDateField } from "./lib/surface.js?v=0.9.7";
-import { aiEstimate, openAddModal } from "./views/add-item.js?v=0.9.7";
-import { completeItem, openInspector } from "./views/inspector.js?v=0.9.7";
-import { aiNewTemplate, openTemplateEditor, openTemplatePicker, openTemplatesManager } from "./views/templates.js?v=0.9.7";
-import { eatScanned, onRetailBarcode, onScan, openScanner } from "./views/scanner.js?v=0.9.7";
-import { historyRow, openHistory, relTime } from "./views/history.js?v=0.9.7";
-import { openCleanModal } from "./views/cleanup.js?v=0.9.7";
-import { printSticker } from "./views/print.js?v=0.9.7";
-import { openKnuspr } from "./views/knuspr.js?v=0.9.7";
+import { CATEGORY_LABELS, KIND_LABELS, LOCATION_LABELS, STATUS_COLOR, STRINGS } from "./strings.js?v=0.9.8";
+import { STYLES } from "./styles.js?v=0.9.8";
+import { daysLabel, esc, fmtDate } from "./lib/format.js?v=0.9.8";
+import { openModal, toast, wireDateField } from "./lib/surface.js?v=0.9.8";
+import { aiEstimate, openAddModal } from "./views/add-item.js?v=0.9.8";
+import { completeItem, openInspector } from "./views/inspector.js?v=0.9.8";
+import { aiNewTemplate, openTemplateEditor, openTemplatePicker, openTemplatesManager } from "./views/templates.js?v=0.9.8";
+import { eatScanned, onRetailBarcode, onScan, openScanner } from "./views/scanner.js?v=0.9.8";
+import { historyRow, openHistory, relTime } from "./views/history.js?v=0.9.8";
+import { openCleanModal } from "./views/cleanup.js?v=0.9.8";
+import { printSticker } from "./views/print.js?v=0.9.8";
+import { openKnuspr } from "./views/knuspr.js?v=0.9.8";
 
 class FridgeAssistantPanel extends HTMLElement {
   constructor() {

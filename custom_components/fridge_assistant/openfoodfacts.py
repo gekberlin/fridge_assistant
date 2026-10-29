@@ -1,6 +1,6 @@
 """Conservative on-demand Open Food Facts lookup for Knuspr order items.
 
-OFF full-text search uses its legacy search endpoint. This module never
+OFF full-text search uses the Search-a-licious endpoint. This module never
 automatically assigns a match or modifies inventory.
 """
 from __future__ import annotations
@@ -47,7 +47,7 @@ async def search_products(hass, name):
         try:
             async with session.get(
                 SEARCH_URL,
-            params={"q": re.sub(r"[^\\w\\s-]", " ", query), "page_size": "8", "langs": "de,en"},
+            params={"q": re.sub(r"[^\w\s-]", " ", query), "page_size": "8", "langs": "de,en"},
                 headers={"User-Agent": UA, "Accept": "application/json"}, timeout=30,
             ) as response:
                 response.raise_for_status()

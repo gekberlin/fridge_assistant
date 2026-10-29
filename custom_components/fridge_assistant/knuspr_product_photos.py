@@ -102,6 +102,47 @@ def extract_photo_map(payload):
     return result
 
 
+def _catalog_image_url(raw, depth=0):
+    """Parse catalog image object or string, including CDN-relative paths.
+
+    Only accept images returned by Knuspr for a matching product ID.
+    """
+    if depth > 6:
+        return ""
+    if isinstance(raw, str):
+        url = _valid_url(raw)
+        if url:
+            return url
+        # Product cards can return a path rather than an absolute URL.
+        path = raw.lstrip("/")
+        if path.startswith("images/grocery/products/"):
+            return _valid_url("https://cdn.knuspr.de/" + path)
+        if raw.startswith("//cdn.knuspr.de/"):
+            return _valid_url("https:" + raw)
+        return ""
+    if isinstance(raw, list):
+        for value in raw[:12]:
+            url = _catalog_image_url(value, depth + 1)
+            if url:
+                return url
+    if isinstance(raw, dict):
+        for key in ("url", "src", "path", "imgPath", "imageUrl",
+                    "image", "original", "large", "medium", "small",
+                    "desktop", "mobile", "thumbnail", "images", "sizes",
+                    "sources", "variants"):
+            if key in raw:
+                url = _catalog_image_url(raw[key], depth + 1)
+                if url:
+                    return url
+        # Other image variants sometimes use size-specific keys.
+        for key, value in raw.items():
+            if isinstance(value, (dict, list)):
+                url = _catalog_image_url(value, depth + 1)
+                if url:
+                    return url
+    return ""
+
+
 async def fetch_direct_catalog_photos(hass, product_ids):
     """Lookup image URLs from Knuspr's *unofficial* public product-card API.
 
@@ -114,7 +155,7 @@ async def fetch_direct_catalog_photos(hass, product_ids):
     logger = logging.getLogger(__name__)
     found = {}
     failures = 0
-    stats = {"batches": 0, "http_200": 0, "cards": 0, "matched_ids": 0, "relative_images": 0, "response_type": "", "sample_fields": []}
+    stats = {"batches": 0, "http_200": 0, "cards": 0, "matched_ids": 0, "relative_images": 0, "response_type": "", "sample_fields": [], "image_type": "", "image_keys": []}
     session = async_get_clientsession(hass)
     ids = list(dict.fromkeys(str(x) for x in product_ids if str(x).isdigit()))[:120]
     for start in range(0, len(ids), 15):
@@ -164,12 +205,13 @@ async def fetch_direct_catalog_photos(hass, product_ids):
                 stats["matched_ids"] += 1
                 raw = (item.get("imgPath") or item.get("imageUrl") or
                        item.get("image") or item.get("images"))
-                url = _photo(raw)
-                if not url and isinstance(raw, str) and raw.lstrip("/").startswith("images/"):
-                    # The product-card API sometimes returns a CDN-relative
-                    # image path. Prefix only paths supplied by that API.
+                if not stats["image_type"] and raw is not None:
+                    stats["image_type"] = type(raw).__name__
+                    if isinstance(raw, dict):
+                        stats["image_keys"] = sorted(str(k) for k in raw)[:18]
+                url = _catalog_image_url(raw)
+                if url and isinstance(raw, str) and not raw.startswith("https://"):
                     stats["relative_images"] += 1
-                    url = _valid_url("https://cdn.knuspr.de/" + raw.lstrip("/"))
                 if url:
                     found[str(pid)] = url
         except Exception as err:

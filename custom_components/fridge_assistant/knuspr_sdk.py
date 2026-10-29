@@ -207,6 +207,7 @@ class KnusprBridge:
                             and str(item.get("id", "")).isdigit()
                         ))[:100]
                         photos = {}
+                        image_diagnostics = {"catalog_available": False, "catalog_errors": 0, "catalog_queries": 0}
                         if product_ids:
                             self._phase = "product_details"
                             try:
@@ -231,21 +232,27 @@ class KnusprBridge:
                         # ID so similar names are never mixed up.
                         if len(photos) < len(product_ids):
                             self._phase = "catalog_images"
+                            available = await session.list_tools()
+                            image_diagnostics["catalog_available"] = any(tool.name == "display_products" for tool in available.tools)
+                            if not image_diagnostics["catalog_available"]:
+                                _LOGGER.warning("Knuspr MCP does not expose display_products for external clients; catalog images unavailable")
                             names = {}
                             for order in orders:
                                 for item in order.get("items", []):
                                     if isinstance(item, dict) and str(item.get("id", "")).isdigit():
                                         names.setdefault(str(item["id"]), str(item.get("name") or ""))
                             # Bound extra API work on large order histories.
-                            for pid, name in list(names.items())[:60]:
+                            for pid, name in (list(names.items())[:60] if image_diagnostics["catalog_available"] else []):
                                 if pid in photos or not name:
                                     continue
                                 try:
+                                    image_diagnostics["catalog_queries"] += 1
                                     result = await asyncio.wait_for(
                                         session.call_tool("display_products", {"keyword": name}),
                                         timeout=12,
                                     )
                                     if getattr(result, "isError", False):
+                                        image_diagnostics["catalog_errors"] += 1
                                         continue
                                     data = parse_mcp_result(result)
                                     if isinstance(data, dict) and "result" in data:
@@ -259,11 +266,14 @@ class KnusprBridge:
                                                 photos[pid] = url
                                             break
                                 except Exception as err:
-                                    _LOGGER.debug("Knuspr catalog photo lookup skipped: %s", type(err).__name__)
-                        _LOGGER.info(
-                            "Knuspr product image enrichment: %d/%d matched",
-                            len(photos), len(product_ids)
+                                    image_diagnostics["catalog_errors"] += 1
+                                    _LOGGER.warning("Knuspr catalog photo lookup failed (%s)", type(err).__name__)
+                        _LOGGER.warning(
+                            "Knuspr photo diagnostics: matched=%d total=%d catalog_available=%s queries=%d errors=%d",
+                            len(photos), len(product_ids), image_diagnostics["catalog_available"],
+                            image_diagnostics["catalog_queries"], image_diagnostics["catalog_errors"]
                         )
+                        self._photo_diagnostics = {**image_diagnostics, "matched": len(photos), "total": len(product_ids)}
                         for order in orders:
                             for item in order.get("items", []):
                                 if isinstance(item, dict):

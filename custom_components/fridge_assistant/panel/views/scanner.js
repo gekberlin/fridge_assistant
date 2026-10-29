@@ -117,6 +117,7 @@ export async function openScanner(panel) {
       <button class="icon-btn scan-torch hidden" id="sc-torch" title="${panel.t("torchTooltip")}"><ha-icon icon="mdi:flashlight"></ha-icon></button>
     </div>
     <div class="scan-status" id="sc-status"></div>
+    <div id="sc-manual-panel"></div>
     <div class="modal-actions">
       ${decodable ? `<label class="btn ghost filepick">${panel.t("photoBtn")}<input id="sc-file" type="file" accept="image/*" capture="environment"></label>` : ""}
       <button class="btn ghost" id="sc-manual">${panel.t("typeCodeBtn")}</button>
@@ -138,7 +139,7 @@ export async function openScanner(panel) {
     if (booking) return;
     booking = true;
     const barcode = String(raw || "").trim();
-    if (!/^\\d{8,14}$/.test(barcode)) {
+    if (!/^[0-9]{8,14}$/.test(barcode)) {
       setStatus("Bitte eine gültige EAN/UPC scannen (8–14 Ziffern).");
       booking = false;
       return;
@@ -219,8 +220,8 @@ export async function openScanner(panel) {
   q("#sc-manual").addEventListener("click", () => {
     stop();
     const box = q("#sc-box"); if (box) box.classList.add("hidden");
-    q("#sc-status").innerHTML = `<div class="scan-manual"><input id="sc-code" placeholder="${panel.t("codeInputPlaceholder")}" autocomplete="off" autocapitalize="characters" enterkeyhint="search"><button class="btn primary" id="sc-go">${panel.t("searchBtn")}</button></div>`;
-    const go = () => { const v = (q("#sc-code").value || "").trim(); if (v) handle(v); };
+    q("#sc-manual-panel").innerHTML = `<div class="scan-manual"><input id="sc-code" placeholder="${panel.t("codeInputPlaceholder")}" autocomplete="off" autocapitalize="characters" enterkeyhint="search"><button class="btn primary" id="sc-go">${panel.t("searchBtn")}</button></div>`;
+    const go = () => { const v = (q("#sc-code").value || "").trim(); if (v) { handle(v); q("#sc-code").select(); } };
     q("#sc-go").addEventListener("click", go);
     q("#sc-code").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
     setTimeout(() => q("#sc-code") && q("#sc-code").focus(), 60);

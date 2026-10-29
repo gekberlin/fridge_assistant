@@ -153,7 +153,7 @@ class KnusprBridge:
                         )
                         if result.isError:
                             raise KnusprSDKError("Knuspr rejected order retrieval")
-                        content = result.structuredContent or result.structured_content
+                        content = getattr(result, 'structured_content', None) or getattr(result, 'structuredContent', None)
                         if not content:
                             for part in result.content or []:
                                 if getattr(part, "text", None):

@@ -542,6 +542,13 @@ ha-icon{--mdc-icon-size:18px;vertical-align:-4px;}
 .kn-row select,#kn-order{max-width:100%;min-width:150px;padding:9px;border:1px solid var(--fa-border);border-radius:10px;color:var(--fa-text);background:var(--fa-card)}
 #kn-items{max-height:45vh;overflow:auto;margin-bottom:12px}
 #kn-import{margin:12px 0 4px;width:100%}
+.kn-auth-box{display:grid;gap:10px;padding:12px;margin:12px 0;background:var(--fa-soft);border-radius:12px}
+.kn-auth-box input{width:100%;min-width:0;padding:10px;font-size:14px;border:1px solid var(--fa-border);border-radius:8px;background:var(--fa-card);color:var(--fa-text)}
+.kn-auth-box label{display:grid;gap:6px;overflow-wrap:anywhere}
+.kn-auth-box a{overflow-wrap:anywhere}
+.kn-controls{display:flex;flex-wrap:wrap;gap:8px}
+.kn-auto-option{display:flex;gap:8px;align-items:flex-start;margin:12px 0;font-size:13px}
+.kn-auto-option input{flex:none;margin-top:3px}
 /* --------------------------------------------------------------- desktop */
 @media (min-width:640px){
   .brand h1{font-size:25px;}
